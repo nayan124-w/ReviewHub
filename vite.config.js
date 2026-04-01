@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: "/ReviewHub/",   // 👈 MOST IMPORTANT
   build: {
     target: 'es2020',
     sourcemap: false,
