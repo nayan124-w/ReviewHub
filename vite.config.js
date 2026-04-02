@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: "/ReviewHub/",   // 👈 MOST IMPORTANT
+  base: '/',   // ✅ THIS LINE ADD KAR
   build: {
     target: 'es2020',
     sourcemap: false,
