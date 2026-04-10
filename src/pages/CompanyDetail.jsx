@@ -36,32 +36,37 @@ const CompanyDetail = () => {
     }
   }, [id]);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [companyData, reviewsData] = await Promise.all([
-        getCompanyById(id),
-        getReviewsByCompany(id),
-      ]);
+const fetchData = async () => {
+  try {
+    console.log("STEP 1: fetch start");
 
-      if (!companyData) {
-        navigate('/');
-        return;
-      }
+    setLoading(true);
 
-      setCompany(companyData);
-      setReviews(reviewsData);
+    console.log("STEP 2: before API");
 
-      if (user) {
-        setHasReviewed(reviewsData.some((r) => r.userId === user.uid));
-      }
-    } catch {
-      /* loading state cleared in finally */
-    } finally {
-      setLoading(false);
+    const companyData = await getCompanyById(id);
+    console.log("STEP 3: company fetched", companyData);
+
+    const reviewsData = await getReviewsByCompany(id);
+    console.log("STEP 4: reviews fetched", reviewsData);
+
+    if (!companyData) {
+      console.log("STEP 5: company not found");
+      navigate('/');
+      return;
     }
-  };
 
+    setCompany(companyData);
+    setReviews(reviewsData);
+
+    console.log("STEP 6: state set");
+
+  } catch (error) {
+    console.error("ERROR AA GAYA 💀:", error);
+  } finally {
+    setLoading(false);
+  }
+};
   if (loading) {
     return <LoadingSpinner text="Loading company details..." />;
   }
@@ -148,9 +153,9 @@ const CompanyDetail = () => {
 
           {/* CTA Buttons */}
           <div className="flex-shrink-0 w-full sm:w-auto flex flex-col sm:flex-row gap-2.5 mt-2 sm:mt-0">
-            {isAuthenticated && company.id && !hasReviewed ? (
+            {isAuthenticated && (company?.id || company?._id) && !hasReviewed ? (
               <Link
-                to={`/add-review/${company.id}`}
+                to={`/add-review/${company?.id || company?._id}`}
                 className="btn-primary w-full sm:w-auto"
                 id="write-review-button"
               >
@@ -170,7 +175,7 @@ const CompanyDetail = () => {
               <Link to="/login" className="btn-secondary text-sm">
                 Log in to review
               </Link>
-            ) : null}
+            ) : null }
             <ShareButton
               title={`${company.name} Reviews — ReviewHub`}
               text={`Check out reviews for ${company.name} on ReviewHub!`}

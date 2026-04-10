@@ -6,6 +6,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { serverTimestamp } from "firebase/firestore";
 
 export const registerUser = async (email, password, displayName) => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -14,10 +15,10 @@ export const registerUser = async (email, password, displayName) => {
   await updateProfile(user, { displayName });
 
   await setDoc(doc(db, 'users', user.uid), {
-    uid: user.uid,
+    userId : user.uid,
     email: user.email,
     displayName,
-    createdAt: new Date().toISOString(),
+    createdAt: serverTimestamp(),
     reviewCount: 0,
   });
 

@@ -8,6 +8,7 @@ import {
   where,
   orderBy,
   updateDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -17,7 +18,7 @@ export const addCompany = async (companyData, userId) => {
   const docRef = await addDoc(companiesRef, {
     ...companyData,
     createdBy: userId,
-    createdAt: new Date().toISOString(),
+    createdAt: serverTimestamp(),
     averageRating: 0,
     totalReviews: 0,
   });

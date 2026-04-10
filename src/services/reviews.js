@@ -8,6 +8,9 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCompanyRating } from './companies';
+import { doc, deleteDoc } from "firebase/firestore";
+import { updateDoc } from "firebase/firestore";
+
 
 const reviewsRef = collection(db, 'reviews');
 
@@ -51,13 +54,31 @@ export const getReviewsByCompany = async (companyId) => {
 
 export const getReviewsByUser = async (userId) => {
   const q = query(
-    reviewsRef,
-    where('userId', '==', userId),
+   reviewsRef,
+    where('userId', '==', user.Id ),
     orderBy('createdAt', 'desc')
   );
   const snapshot = await getDocs(q);
+  console.log("FIRESTORE RAW:", snapshot.docs.map(d => d.data())); // 🔥 ADD THIS
+
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   }));
+};
+
+export const deleteReview = async (reviewId) => {
+  try {
+    await deleteDoc(doc(db, "reviews", reviewId));
+  } catch (error) {
+    console.error("Delete error:", error);
+  }
+};
+
+export const updateReview = async (reviewId, updatedData) => {
+  try {
+    await updateDoc(doc(db, "reviews", reviewId), updatedData);
+  } catch (error) {
+    console.error("Update error:", error);
+  }
 };

@@ -5,11 +5,15 @@ import { getCompanyById } from '../services/companies';
 import { useAuth } from '../context/AuthContext';
 import StarRating from '../components/StarRating';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { deleteReview, updateReview } from "../services/reviews";
 
 const Dashboard = () => {
   const { user, userProfile } = useAuth();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingReview, setEditingReview] = useState(null);
+  const [newText, setNewText] = useState("");
+  const [newRating, setNewRating] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -17,10 +21,14 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  
   const fetchUserReviews = async () => {
     try {
       setLoading(true);
+     
+
       const userReviews = await getReviewsByUser(user.uid);
+
 
       const reviewsWithCompany = await Promise.all(
         userReviews.map(async (review) => {
@@ -41,11 +49,12 @@ const Dashboard = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "—";
+    return new Date(timestamp.seconds * 1000).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
@@ -55,6 +64,11 @@ const Dashboard = () => {
 
   return (
     <div className="page-container py-8 sm:py-12">
+      <div style={{ background: "black", color: "lime", padding: "10px" }}>
+        <p>USER UID: {user?.uid}</p>
+        <p>EMAIL: {user?.email}</p>
+        <p>REVIEWS LENGTH: {reviews.length}</p>
+      </div>
       {/* ── Profile Card ── */}
       <div className="glass rounded-2xl p-6 sm:p-8 mb-8 slide-up">
         <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -136,7 +150,85 @@ const Dashboard = () => {
               <p className="text-sm text-slate-400 leading-relaxed line-clamp-3">
                 {review.description}
               </p>
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
+              {/* 🔥 EDIT MODE */}
+              {editingReview === review.id && (
+                <div className="mt-3">
+                  <select
+                    value={newRating}
+                    onChange={(e) => setNewRating(Number(e.target.value))}
+                    className="w-full p-2 mb-2 bg-slate-800 text-white"
+                  >
+                    <option value="1">⭐ 1</option>
+                    <option value="2">⭐⭐ 2</option>
+                    <option value="3">⭐⭐⭐ 3</option>
+                    <option value="4">⭐⭐⭐⭐ 4</option>
+                    <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                  </select>
+
+                  <textarea
+                    value={newText}
+                    onChange={(e) => setNewText(e.target.value)}
+                    className="w-full p-2 bg-slate-800 text-white"
+                  />
+
+                  <button
+                    onClick={async () => {
+                      console.log("UPDATING...");
+          
+                      await updateReview(review.id, {
+                        description: newText,
+                        rating: newRating,
+                      });
+
+                      // 🔥 instant UI update
+                      setReviews((prev) =>
+                        prev.map((r) =>
+                          r.id === review.id
+                            ? { ...r, description: newText, rating: newRating }
+                            : r
+                        )
+                      );
+
+                      setEditingReview(null);
+                    }}
+                    className="text-green-400 text-xs mt-2"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+
+              {/* 🔥 BUTTONS */}
+                <div className="flex gap-3 mt-3">
+                  <button
+                    onClick={() => {
+                      console.log("EDIT CLICK");
+                      setEditingReview(review.id);
+                      setNewText(review.description);
+                      setNewRating(review.rating);
+                    }}
+                    className="text-blue-400 text-xs"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      console.log("DELETE CLICK");
+        
+                      await deleteReview(review.id);
+
+                  // 🔥 instant remove
+                      setReviews((prev) =>
+                        prev.filter((r) => r.id !== review.id)
+                      );
+                    }}
+                    className="text-red-400 text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
+
                 {review.isAnonymous && (
                   <span className="text-xs text-slate-500 flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -145,20 +237,20 @@ const Dashboard = () => {
                     Posted anonymously
                   </span>
                 )}
+                {/* RATING BADGE */}
                 <span
-                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full ml-auto ${
+                  className={`text-xs font-bold px-2 py-1 rounded w-fit ${
                     review.rating >= 4
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/15'
-                      : review.rating >= 3
-                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/15'
-                      : 'bg-red-500/15 text-red-400 border border-red-500/15'
-                  }`}
+                    ? 'bg-emerald-500/15 text-emerald-400'
+                    : review.rating >= 3
+                    ? 'bg-amber-500/15 text-amber-400'
+                    : 'bg-red-500/15 text-red-400'
+                }`}
                 >
                   {review.rating}/5
                 </span>
               </div>
-            </div>
-          ))}
+        ))}
         </div>
       )}
     </div>
