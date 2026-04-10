@@ -55,7 +55,7 @@ export const getReviewsByCompany = async (companyId) => {
 export const getReviewsByUser = async (userId) => {
   const q = query(
    reviewsRef,
-    where('userId', '==', user.Id ),
+    where("userId", "==", userId),
     orderBy('createdAt', 'desc')
   );
   const snapshot = await getDocs(q);

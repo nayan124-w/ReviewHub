@@ -64,11 +64,6 @@ const Dashboard = () => {
 
   return (
     <div className="page-container py-8 sm:py-12">
-      <div style={{ background: "black", color: "lime", padding: "10px" }}>
-        <p>USER UID: {user?.uid}</p>
-        <p>EMAIL: {user?.email}</p>
-        <p>REVIEWS LENGTH: {reviews.length}</p>
-      </div>
       {/* ── Profile Card ── */}
       <div className="glass rounded-2xl p-6 sm:p-8 mb-8 slide-up">
         <div className="flex flex-col sm:flex-row items-center gap-6">
