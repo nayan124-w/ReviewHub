@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getCompanyById } from '../services/companies';
-import { getReviewsByCompany } from '../services/reviews';
+import { subscribeCompanyById } from '../services/companies';
+import { subscribeReviewsByCompany } from '../services/reviews';
 import { useAuth } from '../context/AuthContext';
 import StarRating from '../components/StarRating';
 import ReviewCard from '../components/ReviewCard';
@@ -28,45 +28,43 @@ const CompanyDetail = () => {
   const [company, setCompany] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [hasReviewed, setHasReviewed] = useState(false);
 
+  /* ── Real-time subscription to company + its reviews ── */
   useEffect(() => {
-    if (id) {
-      fetchData();
-    }
-  }, [id]);
+    if (!id) return;
 
-const fetchData = async () => {
-  try {
-    console.log("STEP 1: fetch start");
+    let companyLoaded = false;
+    let reviewsLoaded = false;
+    const markReady = () => {
+      if (companyLoaded && reviewsLoaded) setLoading(false);
+    };
 
-    setLoading(true);
+    // Subscribe to company document
+    const unsubCompany = subscribeCompanyById(id, (data) => {
+      if (!data) {
+        navigate('/');
+        return;
+      }
+      setCompany(data);
+      companyLoaded = true;
+      markReady();
+    });
 
-    console.log("STEP 2: before API");
+    // Subscribe to reviews for this company
+    const unsubReviews = subscribeReviewsByCompany(id, (data) => {
+      setReviews(data);
+      reviewsLoaded = true;
+      markReady();
+    });
 
-    const companyData = await getCompanyById(id);
-    console.log("STEP 3: company fetched", companyData);
+    return () => {
+      unsubCompany();
+      unsubReviews();
+    };
+  }, [id, navigate]);
 
-    const reviewsData = await getReviewsByCompany(id);
-    console.log("STEP 4: reviews fetched", reviewsData);
+  const hasReviewed = user ? reviews.some((r) => r.userId === user.uid) : false;
 
-    if (!companyData) {
-      console.log("STEP 5: company not found");
-      navigate('/');
-      return;
-    }
-
-    setCompany(companyData);
-    setReviews(reviewsData);
-
-    console.log("STEP 6: state set");
-
-  } catch (error) {
-    console.error("ERROR AA GAYA 💀:", error);
-  } finally {
-    setLoading(false);
-  }
-};
   if (loading) {
     return <LoadingSpinner text="Loading company details..." />;
   }
@@ -153,9 +151,9 @@ const fetchData = async () => {
 
           {/* CTA Buttons */}
           <div className="flex-shrink-0 w-full sm:w-auto flex flex-col sm:flex-row gap-2.5 mt-2 sm:mt-0">
-            {isAuthenticated && (company?.id || company?._id) && !hasReviewed ? (
+            {isAuthenticated && !hasReviewed ? (
               <Link
-                to={`/add-review/${company?.id || company?._id}`}
+                to={`/add-review/${company.id}`}
                 className="btn-primary w-full sm:w-auto"
                 id="write-review-button"
               >
@@ -175,7 +173,7 @@ const fetchData = async () => {
               <Link to="/login" className="btn-secondary text-sm">
                 Log in to review
               </Link>
-            ) : null }
+            ) : null}
             <ShareButton
               title={`${company.name} Reviews — ReviewHub`}
               text={`Check out reviews for ${company.name} on ReviewHub!`}

@@ -1,8 +1,13 @@
 import StarRating from './StarRating';
 
 const ReviewCard = ({ review }) => {
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '—';
+    // Handle Firestore Timestamp objects
+    const date = timestamp.seconds
+      ? new Date(timestamp.seconds * 1000)
+      : new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

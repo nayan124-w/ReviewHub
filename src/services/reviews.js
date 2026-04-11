@@ -2,43 +2,70 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
+  doc,
   query,
   where,
   orderBy,
+  deleteDoc,
+  updateDoc,
+  onSnapshot,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { updateCompanyRating } from './companies';
-import { doc, deleteDoc } from "firebase/firestore";
-import { updateDoc } from "firebase/firestore";
-
+import { updateCompanyStats } from './companies';
 
 const reviewsRef = collection(db, 'reviews');
 
-export const addReview = async (reviewData) => {
-  // Check for duplicate review
+/* ──────────────────────────────────────────────
+   VALIDATION — check for duplicate review
+   ────────────────────────────────────────────── */
+export const hasUserReviewedCompany = async (userId, companyId) => {
   const q = query(
     reviewsRef,
-    where('companyId', '==', reviewData.companyId),
-    where('userId', '==', reviewData.userId)
+    where('userId', '==', userId),
+    where('companyId', '==', companyId)
   );
-  const existing = await getDocs(q);
+  const snapshot = await getDocs(q);
+  return !snapshot.empty;
+};
 
-  if (!existing.empty) {
+/* ──────────────────────────────────────────────
+   CREATE
+   ────────────────────────────────────────────── */
+export const addReview = async (reviewData) => {
+  // Enforce one review per user per company
+  const alreadyReviewed = await hasUserReviewedCompany(
+    reviewData.userId,
+    reviewData.companyId
+  );
+  if (alreadyReviewed) {
     throw new Error('You have already reviewed this company.');
   }
 
   const docRef = await addDoc(reviewsRef, {
-    ...reviewData,
-    createdAt: new Date().toISOString(),
+    userId: reviewData.userId,
+    companyId: reviewData.companyId,
+    rating: reviewData.rating,
+    title: reviewData.title || '',
+    description: reviewData.description,
+    userName: reviewData.userName || 'Anonymous',
+    isAnonymous: reviewData.isAnonymous || false,
+    proofType: reviewData.proofType || null,   // 'image' | 'text' | null
+    proofUrl: reviewData.proofUrl || null,       // storage URL or text proof
+    createdAt: serverTimestamp(),
     helpful: 0,
   });
 
-  // Update company's average rating
-  await updateCompanyRating(reviewData.companyId);
+  // Recalculate company stats
+  await updateCompanyStats(reviewData.companyId);
 
   return { id: docRef.id, ...reviewData };
 };
 
+/* ──────────────────────────────────────────────
+   READ — one-shot helpers
+   ────────────────────────────────────────────── */
 export const getReviewsByCompany = async (companyId) => {
   const q = query(
     reviewsRef,
@@ -46,39 +73,84 @@ export const getReviewsByCompany = async (companyId) => {
     orderBy('createdAt', 'desc')
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
 export const getReviewsByUser = async (userId) => {
   const q = query(
-   reviewsRef,
-    where("userId", "==", userId),
+    reviewsRef,
+    where('userId', '==', userId),
     orderBy('createdAt', 'desc')
   );
   const snapshot = await getDocs(q);
-  console.log("FIRESTORE RAW:", snapshot.docs.map(d => d.data())); // 🔥 ADD THIS
-
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-export const deleteReview = async (reviewId) => {
-  try {
-    await deleteDoc(doc(db, "reviews", reviewId));
-  } catch (error) {
-    console.error("Delete error:", error);
-  }
+/* ──────────────────────────────────────────────
+   REAL-TIME — subscribe to reviews by company
+   ────────────────────────────────────────────── */
+export const subscribeReviewsByCompany = (companyId, callback) => {
+  const q = query(
+    reviewsRef,
+    where('companyId', '==', companyId),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    callback(data);
+  });
 };
 
+/* ──────────────────────────────────────────────
+   REAL-TIME — subscribe to reviews by user
+   ────────────────────────────────────────────── */
+export const subscribeReviewsByUser = (userId, callback) => {
+  const q = query(
+    reviewsRef,
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    callback(data);
+  });
+};
+
+/* ──────────────────────────────────────────────
+   UPDATE
+   ────────────────────────────────────────────── */
 export const updateReview = async (reviewId, updatedData) => {
-  try {
-    await updateDoc(doc(db, "reviews", reviewId), updatedData);
-  } catch (error) {
-    console.error("Update error:", error);
-  }
+  const reviewRef = doc(db, 'reviews', reviewId);
+
+  // Only allow updating safe fields
+  const allowedFields = {};
+  if (updatedData.rating !== undefined) allowedFields.rating = updatedData.rating;
+  if (updatedData.title !== undefined) allowedFields.title = updatedData.title;
+  if (updatedData.description !== undefined) allowedFields.description = updatedData.description;
+  if (updatedData.proofType !== undefined) allowedFields.proofType = updatedData.proofType;
+  if (updatedData.proofUrl !== undefined) allowedFields.proofUrl = updatedData.proofUrl;
+
+  await updateDoc(reviewRef, allowedFields);
+
+  // Recalculate company stats
+  const reviewSnap = await getDoc(reviewRef);
+  const companyId = reviewSnap.data().companyId;
+  await updateCompanyStats(companyId);
+};
+
+/* ──────────────────────────────────────────────
+   DELETE
+   ────────────────────────────────────────────── */
+export const deleteReview = async (reviewId) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+
+  // Get companyId BEFORE deleting
+  const reviewSnap = await getDoc(reviewRef);
+  if (!reviewSnap.exists()) return;
+
+  const companyId = reviewSnap.data().companyId;
+  await deleteDoc(reviewRef);
+
+  // Recalculate company stats
+  await updateCompanyStats(companyId);
 };

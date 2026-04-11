@@ -9,11 +9,15 @@ import {
   orderBy,
   updateDoc,
   serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 const companiesRef = collection(db, 'companies');
 
+/* ──────────────────────────────────────────────
+   CREATE
+   ────────────────────────────────────────────── */
 export const addCompany = async (companyData, userId) => {
   const docRef = await addDoc(companiesRef, {
     ...companyData,
@@ -25,6 +29,9 @@ export const addCompany = async (companyData, userId) => {
   return { id: docRef.id, ...companyData };
 };
 
+/* ──────────────────────────────────────────────
+   READ – one-shot
+   ────────────────────────────────────────────── */
 export const getCompanies = async () => {
   const q = query(companiesRef, orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
@@ -54,7 +61,38 @@ export const searchCompanies = async (searchTerm) => {
   );
 };
 
-export const updateCompanyRating = async (companyId) => {
+/* ──────────────────────────────────────────────
+   REAL-TIME – subscribe to all companies
+   ────────────────────────────────────────────── */
+export const subscribeCompanies = (callback) => {
+  const q = query(companiesRef, orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    callback(data);
+  });
+};
+
+/* ──────────────────────────────────────────────
+   REAL-TIME – subscribe to a single company
+   ────────────────────────────────────────────── */
+export const subscribeCompanyById = (companyId, callback) => {
+  const docRef = doc(db, 'companies', companyId);
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback({ id: docSnap.id, ...docSnap.data() });
+    } else {
+      callback(null);
+    }
+  });
+};
+
+/* ──────────────────────────────────────────────
+   🔥 SINGLE SOURCE OF TRUTH — updateCompanyStats
+   Recalculates averageRating and totalReviews
+   from the reviews collection every time.
+   Called after CREATE / UPDATE / DELETE of a review.
+   ────────────────────────────────────────────── */
+export const updateCompanyStats = async (companyId) => {
   const reviewsCol = collection(db, 'reviews');
   const q = query(reviewsCol, where('companyId', '==', companyId));
   const snapshot = await getDocs(q);
@@ -81,3 +119,6 @@ export const updateCompanyRating = async (companyId) => {
     totalReviews: snapshot.size,
   });
 };
+
+// Keep old alias for backward compat (calls the same logic)
+export const updateCompanyRating = updateCompanyStats;

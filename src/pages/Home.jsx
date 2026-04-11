@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getCompanies, searchCompanies } from '../services/companies';
+import { subscribeCompanies, searchCompanies } from '../services/companies';
 import { useAuth } from '../context/AuthContext';
 import CompanyCard from '../components/CompanyCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -51,41 +51,58 @@ const STEPS = [
 
 const Home = () => {
   const { isAuthenticated, user } = useAuth();
-  const [companies, setCompanies] = useState([]);
+  const [allCompanies, setAllCompanies] = useState([]);   // live from Firestore
+  const [companies, setCompanies] = useState([]);          // displayed (filtered or all)
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [searching, setSearching] = useState(false);
 
+  /* ── Real-time subscription to all companies ── */
   useEffect(() => {
-    fetchCompanies();
+    const unsubscribe = subscribeCompanies((data) => {
+      setAllCompanies(data);
+      // If no active search, display all
+      if (!searchTerm.trim()) {
+        setCompanies(data);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchCompanies = async () => {
-    try {
-      setLoading(true);
-      setCompanies(await getCompanies());
-    } catch {
-      /* empty list shown on error */
-    } finally {
-      setLoading(false);
+  /* ── Re-filter when allCompanies update during a search ── */
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      const lower = searchTerm.toLowerCase();
+      setCompanies(
+        allCompanies.filter(
+          (c) =>
+            c.name.toLowerCase().includes(lower) ||
+            c.industry.toLowerCase().includes(lower) ||
+            c.location.toLowerCase().includes(lower)
+        )
+      );
     }
-  };
+  }, [allCompanies, searchTerm]);
 
-  const handleSearch = async (e) => {
+  const handleSearch = (e) => {
     const term = e.target.value;
     setSearchTerm(term);
     if (!term.trim()) {
-      fetchCompanies();
+      setCompanies(allCompanies);
       return;
     }
-    try {
-      setSearching(true);
-      setCompanies(await searchCompanies(term));
-    } catch {
-      /* silently handle */
-    } finally {
-      setSearching(false);
-    }
+    const lower = term.toLowerCase();
+    setCompanies(
+      allCompanies.filter(
+        (c) =>
+          c.name.toLowerCase().includes(lower) ||
+          c.industry.toLowerCase().includes(lower) ||
+          c.location.toLowerCase().includes(lower)
+      )
+    );
   };
 
   const quickSearch = (v) => {
@@ -93,14 +110,14 @@ const Home = () => {
     handleSearch({ target: { value: v } });
   };
 
-  /* ── Computed stats from real data ── */
-  const totalReviews = companies.reduce((a, c) => a + (c.totalReviews || 0), 0);
-  const avgRating = companies.length
-    ? (companies.reduce((a, c) => a + (c.averageRating || 0), 0) / companies.length).toFixed(1)
+  /* ── Computed stats from real-time data ── */
+  const totalReviews = allCompanies.reduce((a, c) => a + (c.totalReviews || 0), 0);
+  const avgRating = allCompanies.length
+    ? (allCompanies.reduce((a, c) => a + (c.averageRating || 0), 0) / allCompanies.length).toFixed(1)
     : '—';
 
   /* ── Top-rated companies (for featured section) ── */
-  const featuredCompanies = [...companies]
+  const featuredCompanies = [...allCompanies]
     .filter((c) => c.totalReviews > 0)
     .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
     .slice(0, 4);
@@ -181,7 +198,7 @@ const Home = () => {
           {/* Stats */}
           <div className="flex items-center gap-8 sm:gap-12 mt-4">
             {[
-              { val: companies.length || '0', label: 'Companies' },
+              { val: allCompanies.length || '0', label: 'Companies' },
               { val: totalReviews || '0', label: 'Reviews' },
               { val: avgRating, label: 'Avg Rating', amber: true },
             ].map((s, i) => (
