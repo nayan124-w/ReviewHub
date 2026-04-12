@@ -24,15 +24,18 @@ const Footer = () => {
 
           {/* Links */}
           <div className="flex items-center gap-5">
-            <span className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer transition-colors">
+            <Link to="/reviews" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+              Browse Reviews
+            </Link>
+            <Link to="/privacy" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
               Privacy
-            </span>
-            <span className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer transition-colors">
+            </Link>
+            <Link to="/terms" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
               Terms
-            </span>
-            <span className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer transition-colors">
+            </Link>
+            <Link to="/contact" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
               Contact
-            </span>
+            </Link>
           </div>
         </div>
       </div>

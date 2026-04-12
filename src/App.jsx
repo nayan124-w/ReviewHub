@@ -11,6 +11,10 @@ import CompanyDetail from './pages/CompanyDetail';
 import AddCompany from './pages/AddCompany';
 import AddReview from './pages/AddReview';
 import Dashboard from './pages/Dashboard';
+import BrowseReviews from './pages/BrowseReviews';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import Contact from './pages/Contact';
 
 function App() {
   return (
@@ -44,6 +48,10 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/company/:id" element={<CompanyDetail />} />
+                <Route path="/reviews" element={<BrowseReviews />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/contact" element={<Contact />} />
                 <Route
                   path="/add-company"
                   element={

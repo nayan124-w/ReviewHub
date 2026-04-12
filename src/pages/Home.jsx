@@ -112,8 +112,9 @@ const Home = () => {
 
   /* ── Computed stats from real-time data ── */
   const totalReviews = allCompanies.reduce((a, c) => a + (c.totalReviews || 0), 0);
-  const avgRating = allCompanies.length
-    ? (allCompanies.reduce((a, c) => a + (c.averageRating || 0), 0) / allCompanies.length).toFixed(1)
+  const reviewedCompanies = allCompanies.filter((c) => (c.totalReviews || 0) > 0);
+  const avgRating = reviewedCompanies.length
+    ? (reviewedCompanies.reduce((a, c) => a + (c.averageRating || 0), 0) / reviewedCompanies.length).toFixed(1)
     : '—';
 
   /* ── Top-rated companies (for featured section) ── */
@@ -350,7 +351,7 @@ const Home = () => {
               >
                 {isAuthenticated ? 'Add a Company' : 'Create Free Account'}
               </Link>
-              <Link to="/" className="btn-secondary !px-7 !py-3">
+              <Link to="/reviews" className="btn-secondary !px-7 !py-3">
                 Browse Reviews
               </Link>
             </div>

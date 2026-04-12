@@ -253,7 +253,7 @@ const CompanyDetail = () => {
             <div className="space-y-4">
               {reviews.map((review, i) => (
                 <div key={review.id} className="fade-in" style={{ animationDelay: `${i * 0.05}s` }}>
-                  <ReviewCard review={review} />
+                  <ReviewCard review={review} currentUserId={user?.uid} />
                 </div>
               ))}
             </div>

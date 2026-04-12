@@ -48,6 +48,7 @@ const Navbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
             <Link to="/" className={navLinkClass('/')}>Home</Link>
+            <Link to="/reviews" className={navLinkClass('/reviews')}>Browse Reviews</Link>
             {isAuthenticated && (
               <>
                 <Link to="/add-company" className={navLinkClass('/add-company')}>Add Company</Link>
@@ -105,6 +106,13 @@ const Navbar = () => {
               className="block px-4 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
             >
               Home
+            </Link>
+            <Link
+              to="/reviews"
+              onClick={() => setMenuOpen(false)}
+              className="block px-4 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
+            >
+              Browse Reviews
             </Link>
             {isAuthenticated ? (
               <>
