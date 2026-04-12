@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import StarRating from './StarRating';
 import { updateReview, deleteReview } from '../services/reviews';
 import toast from 'react-hot-toast';
@@ -71,7 +72,7 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
     }
   };
 
-  /* ── Proof display helper ── */
+  /* ── Proof display ── */
   const renderProof = () => {
     if (review.proofType === 'image' && review.proofUrl) {
       return (
@@ -79,18 +80,18 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
           <button
             type="button"
             onClick={() => setShowProofImage(!showProofImage)}
-            className="text-xs text-emerald-400 flex items-center gap-1 hover:text-emerald-300 transition-colors"
+            className="text-xs text-emerald-400 flex items-center gap-1.5 hover:text-emerald-300 transition-colors duration-200 font-medium"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            {showProofImage ? 'Hide proof' : 'View proof image'}
+            {showProofImage ? 'Hide proof image' : 'View proof image'}
           </button>
           {showProofImage && (
             <img
               src={review.proofUrl}
               alt="Review proof"
-              className="mt-2 rounded-lg max-h-48 object-cover border border-white/10"
+              className="mt-2.5 rounded-xl max-h-52 object-cover border border-white/10 shadow-lg shadow-black/20"
             />
           )}
         </div>
@@ -98,27 +99,53 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
     }
     if (review.proofType === 'text' && review.proofUrl) {
       return (
-        <div className="mt-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+        <div className="mt-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
           <p className="text-xs text-emerald-400/80 font-medium mb-1">Proof of employment:</p>
-          <p className="text-xs text-slate-400">{review.proofUrl}</p>
+          <p className="text-xs text-slate-400 leading-relaxed">{review.proofUrl}</p>
         </div>
       );
     }
     return null;
   };
 
+  /* ── Username display: clickable if NOT anonymous ── */
+  const renderUserName = () => {
+    if (review.isAnonymous) {
+      return (
+        <p className="text-sm font-semibold text-slate-200">Anonymous</p>
+      );
+    }
+
+    return (
+      <Link
+        to={`/profile/${review.userId}`}
+        className="text-sm font-semibold text-slate-200 hover:text-primary-300 transition-colors duration-200"
+      >
+        {review.userName || 'User'}
+      </Link>
+    );
+  };
+
   return (
-    <div className="glass-light rounded-xl p-5 fade-in">
+    <div className="glass-light rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:border-white/10 hover:shadow-lg hover:shadow-black/10">
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-500/30 border border-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-300">
-            {review.isAnonymous ? '?' : review.userName?.charAt(0)?.toUpperCase() || 'U'}
-          </div>
+          {/* Avatar — clickable if not anonymous */}
+          {review.isAnonymous ? (
+            <div className="w-10 h-10 rounded-full bg-slate-700/50 border border-slate-600/30 flex items-center justify-center text-sm font-bold text-slate-500">
+              ?
+            </div>
+          ) : (
+            <Link
+              to={`/profile/${review.userId}`}
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-500/30 border border-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-300 hover:border-primary-500/40 hover:shadow-md hover:shadow-primary-500/10 transition-all duration-200"
+            >
+              {review.userName?.charAt(0)?.toUpperCase() || 'U'}
+            </Link>
+          )}
           <div>
-            <p className="text-sm font-semibold text-slate-200">
-              {review.isAnonymous ? 'Anonymous' : review.userName || 'User'}
-            </p>
+            {renderUserName()}
             <p className="text-xs text-slate-500">{formatDate(review.createdAt)}</p>
           </div>
         </div>
@@ -126,11 +153,13 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
       </div>
 
       {/* Title */}
-      <h4 className="text-base font-semibold text-white mb-2">{review.title}</h4>
+      {review.title && (
+        <h4 className="text-base font-semibold text-white mb-2">{review.title}</h4>
+      )}
 
       {/* Description — Edit or Read mode */}
       {editing ? (
-        <div className="space-y-3">
+        <div className="space-y-3 mt-3">
           {/* Star picker */}
           <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((star) => (
@@ -138,10 +167,10 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
                 key={star}
                 type="button"
                 onClick={() => setEditRating(star)}
-                className="transition-transform hover:scale-110"
+                className="transition-transform duration-150 hover:scale-125"
               >
                 <svg
-                  className={`w-6 h-6 ${star <= editRating ? 'text-amber-400' : 'text-slate-600'} transition-colors`}
+                  className={`w-6 h-6 ${star <= editRating ? 'text-amber-400' : 'text-slate-600'} transition-colors duration-150`}
                   fill="currentColor"
                   viewBox="0 0 24 24"
                 >
@@ -163,13 +192,13 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
             <button
               onClick={saveEdit}
               disabled={actionInProgress}
-              className="btn-primary text-xs !py-1.5 !px-3 disabled:opacity-50"
+              className="btn-primary text-xs !py-1.5 !px-4 disabled:opacity-50"
             >
-              {actionInProgress ? 'Saving…' : 'Save'}
+              {actionInProgress ? 'Saving…' : 'Save Changes'}
             </button>
             <button
               onClick={cancelEdit}
-              className="text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5"
+              className="text-xs text-slate-400 hover:text-white transition-colors duration-200 px-3 py-1.5 rounded-lg hover:bg-white/5"
             >
               Cancel
             </button>
@@ -182,40 +211,40 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
       {/* Proof display */}
       {!editing && renderProof()}
 
-      {/* Footer with badges and actions */}
-      <div className="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-white/5">
+      {/* Footer: badges + actions */}
+      <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-white/5">
         {/* Proof verification badge */}
         {(review.proofType === 'image' || review.proofType === 'text') && review.proofUrl ? (
-          <span className="text-xs font-medium text-emerald-400 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15">
+          <span className="text-xs font-medium text-emerald-400 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             Verified
           </span>
         ) : (
-          <span className="text-xs text-amber-400/70 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/5 border border-amber-500/10">
+          <span className="text-xs text-amber-400/70 flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/5 border border-amber-500/10">
             ⚠️ Source not verified
           </span>
         )}
 
-        {/* Author actions (Edit / Delete) */}
+        {/* Author actions */}
         {isAuthor && !editing && (
-          <>
+          <div className="flex items-center gap-1 ml-1">
             <button
               onClick={startEdit}
               disabled={actionInProgress}
-              className="text-xs text-primary-400 hover:text-primary-300 transition-colors font-medium disabled:opacity-50"
+              className="text-xs text-primary-400 hover:text-primary-300 transition-colors duration-200 font-medium px-2.5 py-1 rounded-lg hover:bg-primary-500/10 disabled:opacity-50"
             >
-              Edit
+              ✏️ Edit
             </button>
             <button
               onClick={handleDelete}
               disabled={actionInProgress}
-              className="text-xs text-red-400 hover:text-red-300 transition-colors font-medium disabled:opacity-50"
+              className="text-xs text-red-400 hover:text-red-300 transition-colors duration-200 font-medium px-2.5 py-1 rounded-lg hover:bg-red-500/10 disabled:opacity-50"
             >
-              {actionInProgress ? 'Deleting…' : 'Delete'}
+              {actionInProgress ? 'Deleting…' : '🗑️ Delete'}
             </button>
-          </>
+          </div>
         )}
 
         {/* Rating badge */}

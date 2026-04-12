@@ -4,20 +4,24 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { serverTimestamp } from "firebase/firestore";
+import { serverTimestamp } from 'firebase/firestore';
 
-export const registerUser = async (email, password, displayName) => {
+/**
+ * Register a new user with optional college field.
+ */
+export const registerUser = async (email, password, displayName, college = '') => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
   await updateProfile(user, { displayName });
 
   await setDoc(doc(db, 'users', user.uid), {
-    userId : user.uid,
+    userId: user.uid,
     email: user.email,
     displayName,
+    college: college || '',
     createdAt: serverTimestamp(),
     reviewCount: 0,
   });
@@ -40,4 +44,20 @@ export const getUserProfile = async (uid) => {
     return userDoc.data();
   }
   return null;
+};
+
+/**
+ * Fetch all unique college names from the users collection.
+ * Used for the "Filter by College" dropdown in Browse Reviews.
+ */
+export const getUniqueColleges = async () => {
+  const snapshot = await getDocs(collection(db, 'users'));
+  const colleges = new Set();
+  snapshot.docs.forEach((doc) => {
+    const college = doc.data().college;
+    if (college && college.trim()) {
+      colleges.add(college.trim());
+    }
+  });
+  return Array.from(colleges).sort();
 };

@@ -12,6 +12,9 @@ import AddCompany from './pages/AddCompany';
 import AddReview from './pages/AddReview';
 import Dashboard from './pages/Dashboard';
 import BrowseReviews from './pages/BrowseReviews';
+import UserProfile from './pages/UserProfile';
+import Chat from './pages/Chat';
+import Messages from './pages/Messages';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Contact from './pages/Contact';
@@ -49,6 +52,7 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/company/:id" element={<CompanyDetail />} />
                 <Route path="/reviews" element={<BrowseReviews />} />
+                <Route path="/profile/:userId" element={<UserProfile />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/contact" element={<Contact />} />
@@ -73,6 +77,22 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/messages"
+                  element={
+                    <ProtectedRoute>
+                      <Messages />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat/:userId"
+                  element={
+                    <ProtectedRoute>
+                      <Chat />
                     </ProtectedRoute>
                   }
                 />

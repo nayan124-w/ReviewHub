@@ -10,6 +10,7 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    college: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +23,7 @@ const Register = () => {
     e.preventDefault();
 
     if (!formData.displayName || !formData.email || !formData.password) {
-      toast.error('Please fill in all fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -43,7 +44,7 @@ const Register = () => {
 
     try {
       setLoading(true);
-      await registerUser(formData.email, formData.password, formData.displayName);
+      await registerUser(formData.email, formData.password, formData.displayName, formData.college.trim());
       toast.success('Account created! Welcome to ReviewHub 🎉');
       navigate('/');
     } catch (error) {
@@ -77,7 +78,7 @@ const Register = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="displayName" className="block text-sm font-medium text-slate-300 mb-2">
-                Full Name
+                Full Name <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -93,7 +94,7 @@ const Register = () => {
 
             <div>
               <label htmlFor="reg-email" className="block text-sm font-medium text-slate-300 mb-2">
-                Email Address
+                Email Address <span className="text-red-400">*</span>
               </label>
               <input
                 type="email"
@@ -107,9 +108,26 @@ const Register = () => {
               />
             </div>
 
+            {/* College — optional */}
+            <div>
+              <label htmlFor="college" className="block text-sm font-medium text-slate-300 mb-2">
+                Graduation College <span className="text-slate-500 font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                id="college"
+                name="college"
+                value={formData.college}
+                onChange={handleChange}
+                className="input-field"
+                placeholder="e.g. IIT Delhi, MIT, Stanford…"
+                autoComplete="organization"
+              />
+            </div>
+
             <div>
               <label htmlFor="reg-password" className="block text-sm font-medium text-slate-300 mb-2">
-                Password
+                Password <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <input
@@ -143,7 +161,7 @@ const Register = () => {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
-                Confirm Password
+                Confirm Password <span className="text-red-400">*</span>
               </label>
               <input
                 type="password"
