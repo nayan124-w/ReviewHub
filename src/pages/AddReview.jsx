@@ -3,14 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { addReview, hasUserReviewedCompany } from '../services/reviews';
 import { getCompanyById } from '../services/companies';
-import { uploadProofImage } from '../services/proof';
+import { uploadProofImage, validateProofFile, createImagePreview } from '../services/proof';
 import toast from 'react-hot-toast';
 import StarRating from '../components/StarRating';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const AddReview = () => {
   const { companyId } = useParams();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const navigate = useNavigate();
 
   const [company, setCompany] = useState(null);
@@ -21,7 +21,9 @@ const AddReview = () => {
   const [proofType, setProofType] = useState('none'); // 'none' | 'image' | 'text'
   const [proofText, setProofText] = useState('');
   const [proofFile, setProofFile] = useState(null);
+  const [proofPreview, setProofPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [loading, setLoading] = useState(true);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
@@ -34,7 +36,8 @@ const AddReview = () => {
         ]);
         setCompany(companyData);
         setAlreadyReviewed(hasReviewed);
-      } catch {
+      } catch (err) {
+        console.error('Failed to load company:', err);
         toast.error('Failed to load company');
       } finally {
         setLoading(false);
@@ -42,6 +45,40 @@ const AddReview = () => {
     };
     init();
   }, [companyId, user]);
+
+  /* ── Cleanup preview URL on unmount ── */
+  useEffect(() => {
+    return () => {
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+    };
+  }, [proofPreview]);
+
+  /* ── Handle image file selection ── */
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      validateProofFile(file);
+      setProofFile(file);
+
+      // Revoke old preview
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+      setProofPreview(createImagePreview(file));
+    } catch (err) {
+      toast.error(err.message);
+      e.target.value = ''; // Reset input
+      setProofFile(null);
+      setProofPreview(null);
+    }
+  };
+
+  /* ── Remove selected file ── */
+  const clearProofFile = () => {
+    if (proofPreview) URL.revokeObjectURL(proofPreview);
+    setProofFile(null);
+    setProofPreview(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,7 +102,17 @@ const AddReview = () => {
       // Handle proof upload
       let proofData = { proofType: null, proofUrl: null };
       if (proofType === 'image' && proofFile) {
-        proofData = await uploadProofImage(proofFile, user.uid, companyId);
+        setUploadProgress('Uploading proof image…');
+        try {
+          proofData = await uploadProofImage(proofFile, user.uid, companyId);
+        } catch (uploadErr) {
+          console.error('Proof upload error:', uploadErr);
+          toast.error(uploadErr.message || 'Failed to upload proof image');
+          setSubmitting(false);
+          setUploadProgress('');
+          return;
+        }
+        setUploadProgress('');
       } else if (proofType === 'text' && proofText.trim()) {
         proofData = { proofType: 'text', proofUrl: proofText.trim() };
       }
@@ -74,6 +121,7 @@ const AddReview = () => {
         companyId,
         userId: user.uid,
         userName: user.displayName || 'Anonymous',
+        userCollege: userProfile?.college || '',
         rating,
         title: title.trim() || `Review of ${company?.name || 'Company'}`,
         description: description.trim(),
@@ -84,9 +132,11 @@ const AddReview = () => {
       toast.success('Review submitted successfully!');
       navigate(`/company/${companyId}`);
     } catch (error) {
+      console.error('Review submission error:', error);
       toast.error(error.message || 'Error submitting review');
     } finally {
       setSubmitting(false);
+      setUploadProgress('');
     }
   };
 
@@ -226,7 +276,10 @@ const AddReview = () => {
                   <button
                     key={type}
                     type="button"
-                    onClick={() => setProofType(type)}
+                    onClick={() => {
+                      setProofType(type);
+                      if (type !== 'image') clearProofFile();
+                    }}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                       proofType === type
                         ? 'border-primary-500 bg-primary-500/10 text-primary-400'
@@ -237,14 +290,48 @@ const AddReview = () => {
                   </button>
                 ))}
               </div>
+
+              {/* ── Image Proof with Preview ── */}
               {proofType === 'image' && (
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setProofFile(e.target.files[0])}
-                  className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-500/10 file:text-primary-400 hover:file:bg-primary-500/20 transition-colors"
-                />
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleFileSelect}
+                    className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-500/10 file:text-primary-400 hover:file:bg-primary-500/20 transition-colors"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Max 5 MB · Accepted: JPEG, PNG, WebP, GIF
+                  </p>
+
+                  {/* Image Preview */}
+                  {proofPreview && (
+                    <div className="relative inline-block">
+                      <img
+                        src={proofPreview}
+                        alt="Proof preview"
+                        className="rounded-xl max-h-48 object-cover border border-white/10 shadow-lg shadow-black/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearProofFile}
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-400 transition-colors shadow-lg"
+                        title="Remove image"
+                      >
+                        ✕
+                      </button>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-400">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {proofFile?.name} ({(proofFile?.size / 1024).toFixed(0)} KB)
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* ── Text Proof ── */}
               {proofType === 'text' && (
                 <textarea
                   value={proofText}
@@ -265,7 +352,7 @@ const AddReview = () => {
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Submitting…
+                  {uploadProgress || 'Submitting…'}
                 </span>
               ) : (
                 'Submit Review'

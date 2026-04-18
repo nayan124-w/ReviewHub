@@ -11,6 +11,8 @@ import {
   updateDoc,
   onSnapshot,
   serverTimestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCompanyStats } from './companies';
@@ -50,11 +52,17 @@ export const addReview = async (reviewData) => {
     title: reviewData.title || '',
     description: reviewData.description,
     userName: reviewData.userName || 'Anonymous',
+    userCollege: reviewData.userCollege || '',
     isAnonymous: reviewData.isAnonymous || false,
     proofType: reviewData.proofType || null,   // 'image' | 'text' | null
     proofUrl: reviewData.proofUrl || null,       // storage URL or text proof
     createdAt: serverTimestamp(),
     helpful: 0,
+    helpfulBy: [],
+    notHelpful: 0,
+    notHelpfulBy: [],
+    companyReply: null,
+    companyReplyAt: null,
   });
 
   // Recalculate company stats
@@ -153,4 +161,95 @@ export const deleteReview = async (reviewId) => {
 
   // Recalculate company stats
   await updateCompanyStats(companyId);
+};
+
+/* ──────────────────────────────────────────────
+   ⭐ HELPFUL SYSTEM — toggle helpful vote
+   ────────────────────────────────────────────── */
+export const toggleHelpful = async (reviewId, userId) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  const reviewSnap = await getDoc(reviewRef);
+  
+  if (!reviewSnap.exists()) throw new Error('Review not found');
+  
+  const data = reviewSnap.data();
+  const helpfulBy = data.helpfulBy || [];
+  const notHelpfulBy = data.notHelpfulBy || [];
+  
+  if (helpfulBy.includes(userId)) {
+    // Remove helpful vote
+    await updateDoc(reviewRef, {
+      helpful: Math.max((data.helpful || 1) - 1, 0),
+      helpfulBy: arrayRemove(userId),
+    });
+    return false; // un-voted
+  } else {
+    // Add helpful vote (remove notHelpful if exists)
+    const updates = {
+      helpful: (data.helpful || 0) + 1,
+      helpfulBy: arrayUnion(userId),
+    };
+    if (notHelpfulBy.includes(userId)) {
+      updates.notHelpful = Math.max((data.notHelpful || 1) - 1, 0);
+      updates.notHelpfulBy = arrayRemove(userId);
+    }
+    await updateDoc(reviewRef, updates);
+    return true; // voted helpful
+  }
+};
+
+/* ──────────────────────────────────────────────
+   👎 NOT HELPFUL SYSTEM — toggle not-helpful vote
+   Mutually exclusive with helpful.
+   ────────────────────────────────────────────── */
+export const toggleNotHelpful = async (reviewId, userId) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  const reviewSnap = await getDoc(reviewRef);
+  
+  if (!reviewSnap.exists()) throw new Error('Review not found');
+  
+  const data = reviewSnap.data();
+  const notHelpfulBy = data.notHelpfulBy || [];
+  const helpfulBy = data.helpfulBy || [];
+  
+  if (notHelpfulBy.includes(userId)) {
+    // Remove not-helpful vote
+    await updateDoc(reviewRef, {
+      notHelpful: Math.max((data.notHelpful || 1) - 1, 0),
+      notHelpfulBy: arrayRemove(userId),
+    });
+    return false; // un-voted
+  } else {
+    // Add not-helpful vote (remove helpful if exists)
+    const updates = {
+      notHelpful: (data.notHelpful || 0) + 1,
+      notHelpfulBy: arrayUnion(userId),
+    };
+    if (helpfulBy.includes(userId)) {
+      updates.helpful = Math.max((data.helpful || 1) - 1, 0);
+      updates.helpfulBy = arrayRemove(userId);
+    }
+    await updateDoc(reviewRef, updates);
+    return true; // voted not-helpful
+  }
+};
+
+/* ──────────────────────────────────────────────
+   💬 COMPANY REPLY to a review
+   Companies can reply ONCE to each review.
+   ────────────────────────────────────────────── */
+export const addCompanyReply = async (reviewId, replyText) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  await updateDoc(reviewRef, {
+    companyReply: replyText.trim(),
+    companyReplyAt: serverTimestamp(),
+  });
+};
+
+export const deleteCompanyReply = async (reviewId) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  await updateDoc(reviewRef, {
+    companyReply: null,
+    companyReplyAt: null,
+  });
 };

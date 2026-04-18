@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const UserProfile = () => {
   const { userId } = useParams();
-  const { user: currentUser, isAuthenticated } = useAuth();
+  const { user: currentUser, isAuthenticated, isCompany } = useAuth();
   const [profile, setProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +18,13 @@ const UserProfile = () => {
   const isOwnProfile = currentUser?.uid === userId;
 
   useEffect(() => {
+    // 🔒 PRIVACY: Companies cannot view user profiles
+    if (isCompany) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
     const loadProfile = async () => {
       try {
         const profileData = await getUserProfile(userId);
@@ -28,9 +35,11 @@ const UserProfile = () => {
         }
         setProfile(profileData);
 
-        // Fetch user's non-anonymous reviews
+        // Fetch user's non-anonymous reviews (or all if viewing own profile)
         const rawReviews = await getReviewsByUser(userId);
-        const publicReviews = rawReviews.filter((r) => !r.isAnonymous);
+        const publicReviews = isOwnProfile
+          ? rawReviews
+          : rawReviews.filter((r) => !r.isAnonymous);
 
         // Enrich with company names
         const enriched = await Promise.all(
@@ -52,7 +61,7 @@ const UserProfile = () => {
     };
 
     loadProfile();
-  }, [userId]);
+  }, [userId, isOwnProfile, isCompany]);
 
   const getMemberYear = () => {
     if (!profile?.createdAt) return '—';
@@ -74,6 +83,24 @@ const UserProfile = () => {
     : '—';
 
   if (loading) return <LoadingSpinner text="Loading profile..." />;
+
+  // 🔒 PRIVACY: Block company access to user profiles
+  if (isCompany) {
+    return (
+      <div className="page-container py-20 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-slate-800/50 flex items-center justify-center mx-auto mb-5">
+          <svg className="w-10 h-10 text-amber-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-slate-300 mb-2">Access Restricted</h2>
+        <p className="text-slate-500 mb-6 text-sm max-w-sm mx-auto">
+          Reviewer profiles are not visible to company accounts. This protects the privacy of our reviewers.
+        </p>
+        <Link to="/" className="btn-primary">Go Home</Link>
+      </div>
+    );
+  }
 
   if (notFound) {
     return (
@@ -137,11 +164,13 @@ const UserProfile = () => {
             </div>
           </div>
 
-          {/* Stats + Message */}
+          {/* Stats */}
           <div className="flex items-center gap-6 flex-shrink-0">
             <div className="text-center">
               <p className="text-2xl font-bold text-white">{reviews.length}</p>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Public Reviews</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">
+                {isOwnProfile ? 'Reviews' : 'Public Reviews'}
+              </p>
             </div>
             <div className="w-px h-10 bg-slate-700/50" />
             <div className="text-center">
@@ -152,7 +181,7 @@ const UserProfile = () => {
         </div>
 
         {/* Message button — only show if viewing someone else's profile and logged in */}
-        {isAuthenticated && !isOwnProfile && (
+        {isAuthenticated && !isOwnProfile && !isCompany && (
           <div className="mt-6 pt-5 border-t border-white/5 flex items-center gap-3">
             <Link
               to={`/chat/${userId}`}
@@ -163,11 +192,6 @@ const UserProfile = () => {
               </svg>
               Send Message
             </Link>
-            {isOwnProfile && (
-              <Link to="/dashboard" className="btn-secondary text-sm">
-                Edit Profile
-              </Link>
-            )}
           </div>
         )}
       </div>
@@ -175,11 +199,11 @@ const UserProfile = () => {
       {/* ── Reviews Section ── */}
       <div className="mb-6">
         <h2 className="text-xl font-bold text-white">
-          {isOwnProfile ? 'Your Public Reviews' : `Reviews by ${profile.displayName}`}
+          {isOwnProfile ? 'Your Reviews' : `Reviews by ${profile.displayName}`}
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          {reviews.length} public review{reviews.length !== 1 ? 's' : ''}
-          {isOwnProfile ? '' : ' · Anonymous reviews are hidden'}
+          {reviews.length} {isOwnProfile ? '' : 'public '}review{reviews.length !== 1 ? 's' : ''}
+          {!isOwnProfile ? ' · Anonymous reviews are hidden' : ''}
         </p>
       </div>
 
@@ -190,8 +214,17 @@ const UserProfile = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
             </svg>
           </div>
-          <h3 className="text-xl font-bold text-slate-300 mb-2">No public reviews</h3>
-          <p className="text-slate-500 text-sm">This user hasn't shared any public reviews yet.</p>
+          <h3 className="text-xl font-bold text-slate-300 mb-2">
+            {isOwnProfile ? 'No reviews yet' : 'No public reviews'}
+          </h3>
+          <p className="text-slate-500 text-sm">
+            {isOwnProfile
+              ? 'Start sharing your experience — browse companies and write your first review!'
+              : 'This user hasn\'t shared any public reviews yet.'}
+          </p>
+          {isOwnProfile && (
+            <Link to="/" className="btn-primary mt-6 inline-flex">Explore Companies</Link>
+          )}
         </div>
       ) : (
         <div className="space-y-5">

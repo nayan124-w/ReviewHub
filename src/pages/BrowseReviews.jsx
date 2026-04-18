@@ -4,12 +4,13 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getCompanyById, getCompanies } from '../services/companies';
 import { getUserProfile, getUniqueColleges } from '../services/auth';
+import { sanitizeReviewsForView } from '../services/privacy';
 import ReviewCard from '../components/ReviewCard';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const BrowseReviews = () => {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isCompany } = useAuth();
 
   /* ── Data state ── */
   const [allReviews, setAllReviews] = useState([]);
@@ -22,13 +23,16 @@ const BrowseReviews = () => {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedCollege, setSelectedCollege] = useState('');
   const [sameCollege, setSameCollege] = useState(false);
-  const [sortBy, setSortBy] = useState('latest'); // latest | oldest | high | low
+  const [sortBy, setSortBy] = useState('latest'); // latest | oldest | high | low | helpful
 
   /* ── Fetch companies + colleges on mount ── */
   useEffect(() => {
-    getUniqueColleges().then(setColleges).catch(() => {});
+    // 🔒 PRIVACY: Companies should NOT see college data
+    if (!isCompany) {
+      getUniqueColleges().then(setColleges).catch(() => {});
+    }
     getCompanies().then(setCompanies).catch(() => {});
-  }, []);
+  }, [isCompany]);
 
   /* ── Real-time reviews subscription ── */
   useEffect(() => {
@@ -36,25 +40,32 @@ const BrowseReviews = () => {
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const raw = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      // Enrich with company names + user colleges
+      // 🔒 PRIVACY: Sanitize reviews based on viewer type
+      const sanitized = sanitizeReviewsForView(raw, isCompany);
+
+      // Enrich with company names + user colleges (only for non-company viewers)
       const userCache = { ...collegeMap };
       const enriched = await Promise.all(
-        raw.map(async (review) => {
+        sanitized.map(async (review) => {
           let companyName = 'Unknown Company';
           try {
             const company = await getCompanyById(review.companyId);
             companyName = company?.name || 'Unknown Company';
           } catch {}
 
-          let userCollege = userCache[review.userId];
-          if (userCollege === undefined) {
-            try {
-              const profile = await getUserProfile(review.userId);
-              userCollege = profile?.college || '';
-              userCache[review.userId] = userCollege;
-            } catch {
-              userCollege = '';
-              userCache[review.userId] = '';
+          // 🔒 PRIVACY: Only fetch user college for non-company viewers
+          let userCollege = '';
+          if (!isCompany && review.userId) {
+            userCollege = userCache[review.userId];
+            if (userCollege === undefined) {
+              try {
+                const profile = await getUserProfile(review.userId);
+                userCollege = profile?.college || '';
+                userCache[review.userId] = userCollege;
+              } catch {
+                userCollege = '';
+                userCache[review.userId] = '';
+              }
             }
           }
 
@@ -68,7 +79,7 @@ const BrowseReviews = () => {
     });
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isCompany]);
 
   /* ── Filtered + sorted reviews ── */
   const filteredReviews = useMemo(() => {
@@ -79,14 +90,17 @@ const BrowseReviews = () => {
       results = results.filter((r) => r.companyId === selectedCompany);
     }
 
-    // College filter (dropdown)
-    if (selectedCollege) {
-      results = results.filter((r) => r.userCollege === selectedCollege);
-    }
+    // 🔒 PRIVACY: College filters only available for non-company viewers
+    if (!isCompany) {
+      // College filter (dropdown)
+      if (selectedCollege) {
+        results = results.filter((r) => r.userCollege === selectedCollege);
+      }
 
-    // Same college filter
-    if (sameCollege && userProfile?.college) {
-      results = results.filter((r) => r.userCollege === userProfile.college);
+      // Same college filter
+      if (sameCollege && userProfile?.college) {
+        results = results.filter((r) => r.userCollege === userProfile.college);
+      }
     }
 
     // Sorting
@@ -111,12 +125,15 @@ const BrowseReviews = () => {
       case 'low':
         results.sort((a, b) => a.rating - b.rating);
         break;
+      case 'helpful':
+        results.sort((a, b) => (b.helpful || 0) - (a.helpful || 0));
+        break;
       default:
         break;
     }
 
     return results;
-  }, [allReviews, selectedCompany, selectedCollege, sameCollege, sortBy, userProfile]);
+  }, [allReviews, selectedCompany, selectedCollege, sameCollege, sortBy, userProfile, isCompany]);
 
   const hasActiveFilters = selectedCompany || selectedCollege || sameCollege || sortBy !== 'latest';
 
@@ -136,6 +153,20 @@ const BrowseReviews = () => {
           {filteredReviews.length} review{filteredReviews.length !== 1 ? 's' : ''} from our community
         </p>
       </div>
+
+      {/* 🔒 PRIVACY: Notice for company viewers */}
+      {isCompany && (
+        <div className="glass rounded-2xl p-4 mb-6 slide-up">
+          <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/10 rounded-xl px-4 py-2.5">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span>
+              <strong>Privacy Protected:</strong> Reviewer identities, emails, and college information are hidden from company accounts.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ━━━ FILTER BAR ━━━ */}
       <div className="glass rounded-2xl p-4 sm:p-5 mb-8 slide-up" style={{ animationDelay: '0.05s' }}>
@@ -157,26 +188,28 @@ const BrowseReviews = () => {
             </select>
           </div>
 
-          {/* College filter */}
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs text-slate-500 font-medium mb-1.5">
-              🎓 College
-            </label>
-            <select
-              value={selectedCollege}
-              onChange={(e) => {
-                setSelectedCollege(e.target.value);
-                if (e.target.value) setSameCollege(false);
-              }}
-              disabled={sameCollege}
-              className="input-field !py-2 !px-3 !text-sm !rounded-xl disabled:opacity-40"
-            >
-              <option value="">All Colleges</option>
-              {colleges.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          {/* 🔒 PRIVACY: College filter hidden from companies */}
+          {!isCompany && (
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs text-slate-500 font-medium mb-1.5">
+                🎓 College
+              </label>
+              <select
+                value={selectedCollege}
+                onChange={(e) => {
+                  setSelectedCollege(e.target.value);
+                  if (e.target.value) setSameCollege(false);
+                }}
+                disabled={sameCollege}
+                className="input-field !py-2 !px-3 !text-sm !rounded-xl disabled:opacity-40"
+              >
+                <option value="">All Colleges</option>
+                {colleges.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Sort by */}
           <div className="flex-1 min-w-0">
@@ -192,12 +225,14 @@ const BrowseReviews = () => {
               <option value="oldest">Oldest First</option>
               <option value="high">Rating: High → Low</option>
               <option value="low">Rating: Low → High</option>
+              <option value="helpful">Most Helpful</option>
             </select>
           </div>
 
           {/* Same College toggle + Clear */}
           <div className="flex items-end gap-2 flex-shrink-0">
-            {userProfile?.college && (
+            {/* 🔒 PRIVACY: Same college toggle hidden from companies */}
+            {!isCompany && userProfile?.college && (
               <button
                 onClick={() => {
                   setSameCollege(!sameCollege);
@@ -234,13 +269,13 @@ const BrowseReviews = () => {
               <button onClick={() => setSelectedCompany('')} className="text-primary-300 hover:text-white transition-colors">✕</button>
             </span>
           )}
-          {selectedCollege && (
+          {selectedCollege && !isCompany && (
             <span className="text-xs font-medium text-primary-400 px-2.5 py-1 rounded-full bg-primary-500/10 border border-primary-500/15 flex items-center gap-1.5">
               🎓 {selectedCollege}
               <button onClick={() => setSelectedCollege('')} className="text-primary-300 hover:text-white transition-colors">✕</button>
             </span>
           )}
-          {sameCollege && userProfile?.college && (
+          {sameCollege && userProfile?.college && !isCompany && (
             <span className="text-xs font-medium text-primary-400 px-2.5 py-1 rounded-full bg-primary-500/10 border border-primary-500/15 flex items-center gap-1.5">
               🏫 {userProfile.college}
               <button onClick={() => setSameCollege(false)} className="text-primary-300 hover:text-white transition-colors">✕</button>
@@ -248,7 +283,7 @@ const BrowseReviews = () => {
           )}
           {sortBy !== 'latest' && (
             <span className="text-xs text-slate-500 px-2 py-0.5 rounded-full bg-slate-800/50 border border-white/5">
-              ↕️ {sortBy === 'oldest' ? 'Oldest' : sortBy === 'high' ? 'High → Low' : 'Low → High'}
+              ↕️ {sortBy === 'oldest' ? 'Oldest' : sortBy === 'high' ? 'High → Low' : sortBy === 'low' ? 'Low → High' : 'Most Helpful'}
             </span>
           )}
           <span className="text-xs text-slate-500 ml-1">
@@ -300,13 +335,14 @@ const BrowseReviews = () => {
                   </svg>
                   {review.companyName}
                 </Link>
-                {review.userCollege && (
+                {/* 🔒 PRIVACY: Hide college badge from companies */}
+                {review.userCollege && !isCompany && (
                   <span className="text-xs text-slate-500 px-2 py-0.5 rounded-full bg-slate-800/50 border border-white/5">
                     🎓 {review.userCollege}
                   </span>
                 )}
               </div>
-              <ReviewCard review={review} currentUserId={user?.uid} />
+              <ReviewCard review={review} currentUserId={user?.uid} isCompanyView={isCompany} />
             </div>
           ))}
         </div>

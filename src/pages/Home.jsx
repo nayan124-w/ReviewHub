@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { subscribeCompanies, searchCompanies } from '../services/companies';
+import { subscribeCompanies } from '../services/companies';
 import { useAuth } from '../context/AuthContext';
 import CompanyCard from '../components/CompanyCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -50,7 +50,7 @@ const STEPS = [
 ];
 
 const Home = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isCompany } = useAuth();
   const [allCompanies, setAllCompanies] = useState([]);   // live from Firestore
   const [companies, setCompanies] = useState([]);          // displayed (filtered or all)
   const [loading, setLoading] = useState(true);
@@ -117,10 +117,16 @@ const Home = () => {
     ? (reviewedCompanies.reduce((a, c) => a + (c.averageRating || 0), 0) / reviewedCompanies.length).toFixed(1)
     : '—';
 
-  /* ── Top-rated companies (for featured section) ── */
+  /* ── Top-rated companies (featured) ── */
   const featuredCompanies = [...allCompanies]
     .filter((c) => c.totalReviews > 0)
     .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
+    .slice(0, 4);
+
+  /* ── Trending companies (most reviews recently) ── */
+  const trendingCompanies = [...allCompanies]
+    .filter((c) => c.totalReviews > 0)
+    .sort((a, b) => (b.totalReviews || 0) - (a.totalReviews || 0))
     .slice(0, 4);
 
   return (
@@ -211,6 +217,24 @@ const Home = () => {
               </div>
             ))}
           </div>
+
+          {/* Quick Links */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
+            <Link to="/jobs" className="btn-secondary text-sm !py-2.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Browse Jobs
+            </Link>
+            {!isCompany && (
+              <Link to="/company/login" className="btn-secondary text-sm !py-2.5">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+                </svg>
+                For Companies
+              </Link>
+            )}
+          </div>
         </div>
       </section>
 
@@ -230,6 +254,30 @@ const Home = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {featuredCompanies.map((c, i) => (
+              <div key={c.id} className="fade-in" style={{ animationDelay: `${i * 0.08}s` }}>
+                <CompanyCard company={c} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ━━━ TRENDING COMPANIES ━━━ */}
+      {trendingCompanies.length > 0 && trendingCompanies.length !== featuredCompanies.length && (
+        <section className="page-container pb-16 section-glow">
+          <div className="text-center mb-10">
+            <p className="text-[11px] font-bold text-amber-400 tracking-widest uppercase mb-2">
+              🔥 Trending
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white">
+              Most <span className="hero-gradient-text">Reviewed</span>
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+              Companies with the most community engagement
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {trendingCompanies.map((c, i) => (
               <div key={c.id} className="fade-in" style={{ animationDelay: `${i * 0.08}s` }}>
                 <CompanyCard company={c} />
               </div>
@@ -291,7 +339,7 @@ const Home = () => {
                 : 'Browse companies added by our community'}
             </p>
           </div>
-          {isAuthenticated && (
+          {isAuthenticated && !isCompany && (
             <Link to="/add-company" className="btn-primary text-xs !py-2 !px-4 self-start sm:self-auto">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -1,11 +1,12 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { logoutUser } from '../services/auth';
+import { logoutCompany } from '../services/companyAuth';
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isCompany } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -29,7 +30,11 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
+      if (isCompany) {
+        await logoutCompany();
+      } else {
+        await logoutUser();
+      }
       toast.success('Logged out successfully');
       navigate('/');
     } catch {
@@ -68,17 +73,21 @@ const Navbar = () => {
             </span>
           </Link>
 
-          {/* Desktop Navigation — centered with proper gap */}
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1.5 ml-8">
             <Link to="/" className={navLinkClass('/')}>
               Home
               {activeIndicator('/')}
             </Link>
             <Link to="/reviews" className={navLinkClass('/reviews')}>
-              Browse Reviews
+              Reviews
               {activeIndicator('/reviews')}
             </Link>
-            {isAuthenticated && (
+            <Link to="/jobs" className={navLinkClass('/jobs')}>
+              Jobs
+              {activeIndicator('/jobs')}
+            </Link>
+            {isAuthenticated && !isCompany && (
               <>
                 <Link to="/add-company" className={navLinkClass('/add-company')}>
                   Add Company
@@ -94,28 +103,45 @@ const Navbar = () => {
                 </Link>
               </>
             )}
+            {isCompany && (
+              <Link to="/company/dashboard" className={navLinkClass('/company/dashboard')}>
+                <span className="flex items-center gap-1.5">
+                  🏢 Company
+                </span>
+                {activeIndicator('/company/dashboard')}
+              </Link>
+            )}
           </div>
 
-          {/* Auth Section — right-aligned */}
+          {/* Auth Section */}
           <div className="hidden md:flex items-center gap-3 ml-auto">
             {isAuthenticated ? (
               <>
-                <Link
-                  to="/messages"
-                  className="p-2 rounded-lg text-slate-400 hover:text-primary-400 hover:bg-white/5 transition-all duration-200 relative"
-                  title="Messages"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </Link>
+                {!isCompany && (
+                  <Link
+                    to="/messages"
+                    className="p-2 rounded-lg text-slate-400 hover:text-primary-400 hover:bg-white/5 transition-all duration-200 relative"
+                    title="Messages"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </Link>
+                )}
                 <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full glass-light">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-400 to-accent-500 flex items-center justify-center text-xs font-bold text-white shadow-sm">
-                    {user?.displayName?.charAt(0)?.toUpperCase() || 'U'}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${
+                    isCompany
+                      ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                      : 'bg-gradient-to-br from-primary-400 to-accent-500'
+                  }`}>
+                    {user?.displayName?.charAt(0)?.toUpperCase() || (isCompany ? 'C' : 'U')}
                   </div>
                   <span className="text-sm text-slate-300 font-medium max-w-[120px] truncate">
                     {user?.displayName || 'User'}
                   </span>
+                  {isCompany && (
+                    <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">Co</span>
+                  )}
                 </div>
                 <button
                   onClick={handleLogout}
@@ -152,7 +178,7 @@ const Navbar = () => {
           </button>
         </div>
 
-        {/* Mobile Menu — Animated slide-down */}
+        {/* Mobile Menu */}
         <div
           className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
             menuOpen ? 'max-h-[500px] opacity-100 pb-4' : 'max-h-0 opacity-0'
@@ -175,7 +201,15 @@ const Navbar = () => {
             >
               Browse Reviews
             </Link>
-            {isAuthenticated ? (
+            <Link
+              to="/jobs"
+              className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive('/jobs') ? 'text-white bg-white/8' : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              💼 Jobs
+            </Link>
+            {isAuthenticated && !isCompany ? (
               <>
                 <Link
                   to="/add-company"
@@ -207,6 +241,42 @@ const Navbar = () => {
                       {user?.displayName?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
                     <span className="text-sm text-slate-300 font-medium">{user?.displayName}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-all duration-200 text-sm font-medium"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </>
+            ) : isCompany ? (
+              <>
+                <Link
+                  to="/company/dashboard"
+                  className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive('/company/dashboard') ? 'text-white bg-white/8' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  🏢 Company Dashboard
+                </Link>
+                <Link
+                  to="/company/post-job"
+                  className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive('/company/post-job') ? 'text-white bg-white/8' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Post a Job
+                </Link>
+                <div className="border-t border-white/5 mt-2 pt-3 mx-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs font-bold text-white">
+                      {user?.displayName?.charAt(0)?.toUpperCase() || 'C'}
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-300 font-medium">{user?.displayName}</span>
+                      <span className="ml-2 text-[9px] text-emerald-400 font-bold uppercase">Company</span>
+                    </div>
                   </div>
                   <button
                     onClick={handleLogout}

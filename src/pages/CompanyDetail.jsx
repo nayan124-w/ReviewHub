@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { subscribeCompanyById } from '../services/companies';
 import { subscribeReviewsByCompany } from '../services/reviews';
+import { sanitizeReviewsForView } from '../services/privacy';
 import { useAuth } from '../context/AuthContext';
 import StarRating from '../components/StarRating';
 import ReviewCard from '../components/ReviewCard';
@@ -23,7 +24,7 @@ const industryIcons = {
 
 const CompanyDetail = () => {
   const { id } = useParams();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isCompany } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -52,7 +53,9 @@ const CompanyDetail = () => {
 
     // Subscribe to reviews for this company
     const unsubReviews = subscribeReviewsByCompany(id, (data) => {
-      setReviews(data);
+      // 🔒 PRIVACY: Sanitize reviews based on viewer type
+      const sanitized = sanitizeReviewsForView(data, isCompany);
+      setReviews(sanitized);
       reviewsLoaded = true;
       markReady();
     });
@@ -61,7 +64,7 @@ const CompanyDetail = () => {
       unsubCompany();
       unsubReviews();
     };
-  }, [id, navigate]);
+  }, [id, navigate, isCompany]);
 
   const hasReviewed = user ? reviews.some((r) => r.userId === user.uid) : false;
 
@@ -151,7 +154,8 @@ const CompanyDetail = () => {
 
           {/* CTA Buttons */}
           <div className="flex-shrink-0 w-full sm:w-auto flex flex-col sm:flex-row gap-2.5 mt-2 sm:mt-0">
-            {isAuthenticated && !hasReviewed ? (
+            {/* 🔒 PRIVACY: Companies cannot write reviews */}
+            {isAuthenticated && !isCompany && !hasReviewed ? (
               <Link
                 to={`/add-review/${company.id}`}
                 className="btn-primary w-full sm:w-auto"
@@ -162,7 +166,7 @@ const CompanyDetail = () => {
                 </svg>
                 Write a Review
               </Link>
-            ) : hasReviewed ? (
+            ) : !isCompany && hasReviewed ? (
               <span className="text-sm text-emerald-400 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/15">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -181,6 +185,21 @@ const CompanyDetail = () => {
             />
           </div>
         </div>
+
+        {/* 🔒 PRIVACY: Show privacy notice if company is viewing */}
+        {isCompany && (
+          <div className="mt-5 pt-4 border-t border-white/5">
+            <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/10 rounded-xl px-4 py-2.5">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>
+                <strong>Privacy Protected:</strong> Reviewer identities are hidden from company accounts. 
+                You can only see ratings, descriptions, dates, and verification status.
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Main Grid ── */}
@@ -243,7 +262,7 @@ const CompanyDetail = () => {
               <p className="text-slate-500 mb-6 text-sm">
                 Be the first to share your experience at {company.name}
               </p>
-              {isAuthenticated && company.id && (
+              {isAuthenticated && !isCompany && company.id && (
                 <Link to={`/add-review/${company.id}`} className="btn-primary">
                   Write the First Review
                 </Link>
@@ -253,7 +272,11 @@ const CompanyDetail = () => {
             <div className="space-y-5">
               {reviews.map((review, i) => (
                 <div key={review.id} className="fade-in" style={{ animationDelay: `${i * 0.05}s` }}>
-                  <ReviewCard review={review} currentUserId={user?.uid} />
+                  <ReviewCard
+                    review={review}
+                    currentUserId={user?.uid}
+                    isCompanyView={isCompany}
+                  />
                 </div>
               ))}
             </div>

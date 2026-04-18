@@ -1,15 +1,23 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import StarRating from './StarRating';
-import { updateReview, deleteReview } from '../services/reviews';
+import { updateReview, deleteReview, toggleHelpful, toggleNotHelpful } from '../services/reviews';
 import toast from 'react-hot-toast';
 
-const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
+const ReviewCard = ({ review, currentUserId, onReviewChanged, isCompanyView = false }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [editRating, setEditRating] = useState(0);
   const [actionInProgress, setActionInProgress] = useState(false);
   const [showProofImage, setShowProofImage] = useState(false);
+  const [localHelpful, setLocalHelpful] = useState(review.helpful || 0);
+  const [localNotHelpful, setLocalNotHelpful] = useState(review.notHelpful || 0);
+  const [hasVotedHelpful, setHasVotedHelpful] = useState(
+    review.helpfulBy?.includes(currentUserId) || false
+  );
+  const [hasVotedNotHelpful, setHasVotedNotHelpful] = useState(
+    review.notHelpfulBy?.includes(currentUserId) || false
+  );
 
   const isAuthor = currentUserId && review.userId === currentUserId;
 
@@ -52,6 +60,7 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
       setEditing(false);
       if (onReviewChanged) onReviewChanged();
     } catch (error) {
+      console.error('Update review error:', error);
       toast.error(error.message || 'Failed to update review');
     } finally {
       setActionInProgress(false);
@@ -66,9 +75,50 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
       toast.success('Review deleted');
       if (onReviewChanged) onReviewChanged();
     } catch (error) {
+      console.error('Delete review error:', error);
       toast.error(error.message || 'Failed to delete review');
     } finally {
       setActionInProgress(false);
+    }
+  };
+
+  const handleHelpful = async () => {
+    if (!currentUserId) {
+      toast.error('Log in to vote');
+      return;
+    }
+    try {
+      const voted = await toggleHelpful(review.id, currentUserId);
+      setHasVotedHelpful(voted);
+      setLocalHelpful((prev) => (voted ? prev + 1 : prev - 1));
+      // If voting helpful, remove not-helpful state
+      if (voted && hasVotedNotHelpful) {
+        setHasVotedNotHelpful(false);
+        setLocalNotHelpful((prev) => Math.max(prev - 1, 0));
+      }
+    } catch (err) {
+      console.error('Toggle helpful error:', err);
+      toast.error('Failed to update vote');
+    }
+  };
+
+  const handleNotHelpful = async () => {
+    if (!currentUserId) {
+      toast.error('Log in to vote');
+      return;
+    }
+    try {
+      const voted = await toggleNotHelpful(review.id, currentUserId);
+      setHasVotedNotHelpful(voted);
+      setLocalNotHelpful((prev) => (voted ? prev + 1 : prev - 1));
+      // If voting not-helpful, remove helpful state
+      if (voted && hasVotedHelpful) {
+        setHasVotedHelpful(false);
+        setLocalHelpful((prev) => Math.max(prev - 1, 0));
+      }
+    } catch (err) {
+      console.error('Toggle not-helpful error:', err);
+      toast.error('Failed to update vote');
     }
   };
 
@@ -108,8 +158,13 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
     return null;
   };
 
-  /* ── Username display: clickable if NOT anonymous ── */
+  /* ── Username display: clickable if NOT anonymous and NOT company view ── */
   const renderUserName = () => {
+    // 🔒 PRIVACY: Company view never shows user info
+    if (isCompanyView) {
+      return <p className="text-sm font-semibold text-slate-300">Anonymous Reviewer</p>;
+    }
+
     if (review.isAnonymous) {
       return (
         <p className="text-sm font-semibold text-slate-200">Anonymous</p>
@@ -126,24 +181,41 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
     );
   };
 
+  /* ── Avatar ── */
+  const renderAvatar = () => {
+    // 🔒 PRIVACY: Company view always shows locked avatar
+    if (isCompanyView) {
+      return (
+        <div className="w-10 h-10 rounded-full bg-slate-700/50 border border-slate-600/30 flex items-center justify-center text-sm text-slate-500">
+          🔒
+        </div>
+      );
+    }
+
+    if (review.isAnonymous) {
+      return (
+        <div className="w-10 h-10 rounded-full bg-slate-700/50 border border-slate-600/30 flex items-center justify-center text-sm font-bold text-slate-500">
+          ?
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        to={`/profile/${review.userId}`}
+        className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-500/30 border border-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-300 hover:border-primary-500/40 hover:shadow-md hover:shadow-primary-500/10 transition-all duration-200"
+      >
+        {review.userName?.charAt(0)?.toUpperCase() || 'U'}
+      </Link>
+    );
+  };
+
   return (
     <div className="glass-light rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:border-white/10 hover:shadow-lg hover:shadow-black/10">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          {/* Avatar — clickable if not anonymous */}
-          {review.isAnonymous ? (
-            <div className="w-10 h-10 rounded-full bg-slate-700/50 border border-slate-600/30 flex items-center justify-center text-sm font-bold text-slate-500">
-              ?
-            </div>
-          ) : (
-            <Link
-              to={`/profile/${review.userId}`}
-              className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-500/30 border border-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-300 hover:border-primary-500/40 hover:shadow-md hover:shadow-primary-500/10 transition-all duration-200"
-            >
-              {review.userName?.charAt(0)?.toUpperCase() || 'U'}
-            </Link>
-          )}
+          {renderAvatar()}
           <div>
             {renderUserName()}
             <p className="text-xs text-slate-500">{formatDate(review.createdAt)}</p>
@@ -211,6 +283,22 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
       {/* Proof display */}
       {!editing && renderProof()}
 
+      {/* Company Reply (visible to all) */}
+      {review.companyReply && (
+        <div className="mt-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+          <p className="text-xs text-emerald-400/80 font-medium mb-1 flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+            </svg>
+            Company Response:
+          </p>
+          <p className="text-sm text-slate-300 leading-relaxed">{review.companyReply}</p>
+          {review.companyReplyAt && (
+            <p className="text-[10px] text-slate-500 mt-1">{formatDate(review.companyReplyAt)}</p>
+          )}
+        </div>
+      )}
+
       {/* Footer: badges + actions */}
       <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-white/5">
         {/* Proof verification badge */}
@@ -227,8 +315,46 @@ const ReviewCard = ({ review, currentUserId, onReviewChanged }) => {
           </span>
         )}
 
+        {/* ⭐ Helpful / Not Helpful Buttons */}
+        {!isCompanyView && (
+          <div className="flex items-center gap-1.5">
+            {/* 👍 Helpful */}
+            <button
+              onClick={handleHelpful}
+              disabled={!currentUserId}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-all duration-200 flex items-center gap-1 ${
+                hasVotedHelpful
+                  ? 'border-primary-500/30 bg-primary-500/10 text-primary-400'
+                  : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-white/5'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              👍 Helpful{localHelpful > 0 ? ` (${localHelpful})` : ''}
+            </button>
+
+            {/* 👎 Not Helpful */}
+            <button
+              onClick={handleNotHelpful}
+              disabled={!currentUserId}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-all duration-200 flex items-center gap-1 ${
+                hasVotedNotHelpful
+                  ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                  : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-white/5'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              👎{localNotHelpful > 0 ? ` (${localNotHelpful})` : ''}
+            </button>
+          </div>
+        )}
+
+        {/* Helpful summary text */}
+        {localHelpful > 0 && (
+          <span className="text-[10px] text-slate-500 hidden sm:inline">
+            {localHelpful} {localHelpful === 1 ? 'person' : 'people'} found this helpful
+          </span>
+        )}
+
         {/* Author actions */}
-        {isAuthor && !editing && (
+        {isAuthor && !editing && !isCompanyView && (
           <div className="flex items-center gap-1 ml-1">
             <button
               onClick={startEdit}
