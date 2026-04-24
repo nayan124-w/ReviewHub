@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { updateCompanyProfile } from '../services/companyAuth';
-import { logoutCompany } from '../services/companyAuth';
-import { getJobsByCompany, deleteJob, subscribeJobsByCompany } from '../services/jobs';
+import { deleteJob, subscribeJobsByCompany, updateJob } from '../services/jobs';
 import { sanitizeReviewsForCompany } from '../services/privacy';
 import {
   collection,
@@ -20,7 +19,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const CompanyDashboard = () => {
-  const { user, companyProfile, isCompany, isAuthenticated } = useAuth();
+  const { user, companyProfile, isCompany, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview'); // overview | reviews | jobs | profile
@@ -31,6 +30,10 @@ const CompanyDashboard = () => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [linkedCompanyIds, setLinkedCompanyIds] = useState([]);
+
+  // Job editing state
+  const [editingJobId, setEditingJobId] = useState(null);
+  const [editJobForm, setEditJobForm] = useState({});
 
   // Profile editing
   const [editing, setEditing] = useState(false);
@@ -161,11 +164,59 @@ const CompanyDashboard = () => {
     }
   };
 
+  const startEditingJob = (job) => {
+    setEditingJobId(job.id);
+    setEditJobForm({
+      title: job.title || '',
+      description: job.description || '',
+      salary: job.salary || '',
+      location: job.location || '',
+      type: job.type || 'Full-time',
+      applyLink: job.applyLink || '',
+      durationDays: job.durationDays || '',
+    });
+  };
+
+  const cancelEditingJob = () => {
+    setEditingJobId(null);
+    setEditJobForm({});
+  };
+
+  const handleUpdateJob = async (jobId) => {
+    if (!editJobForm.title?.trim()) {
+      toast.error('Job title is required');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const updates = { ...editJobForm };
+
+      // Compute expiresAt from durationDays
+      if (updates.durationDays && Number(updates.durationDays) > 0) {
+        updates.durationDays = Number(updates.durationDays);
+        updates.expiresAt = new Date(Date.now() + updates.durationDays * 24 * 60 * 60 * 1000);
+      } else {
+        // Remove expiry if no duration set
+        updates.durationDays = null;
+        updates.expiresAt = null;
+      }
+
+      await updateJob(jobId, updates);
+      toast.success('Job updated!');
+      setEditingJobId(null);
+      setEditJobForm({});
+    } catch {
+      toast.error('Failed to update job');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
-      await logoutCompany();
+      await logout();
       toast.success('Logged out');
-      navigate('/');
+      navigate('/login', { replace: true });
     } catch {
       toast.error('Failed to log out');
     }
@@ -495,34 +546,164 @@ const CompanyDashboard = () => {
               <Link to="/company/post-job" className="btn-primary">Post Your First Job</Link>
             </div>
           ) : (
-            jobs.map((job, i) => (
-              <div
-                key={job.id}
-                className="glass-light rounded-2xl p-5 fade-in"
-                style={{ animationDelay: `${i * 0.04}s` }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{job.title}</h3>
-                    <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-                      {job.location && <span>📍 {job.location}</span>}
-                      {job.salary && <span>💰 {job.salary}</span>}
-                      {job.type && <span>{job.type}</span>}
+            jobs.map((job, i) => {
+              const isExpired = job.expiresAt && (
+                (job.expiresAt.seconds ? new Date(job.expiresAt.seconds * 1000) : new Date(job.expiresAt)) < new Date()
+              );
+              return (
+                <div
+                  key={job.id}
+                  className={`glass-light rounded-2xl p-5 fade-in ${isExpired ? 'opacity-60' : ''}`}
+                  style={{ animationDelay: `${i * 0.04}s` }}
+                >
+                  {editingJobId === job.id ? (
+                    /* ── EDIT MODE ── */
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Job Title *</label>
+                        <input
+                          type="text"
+                          value={editJobForm.title}
+                          onChange={(e) => setEditJobForm({ ...editJobForm, title: e.target.value })}
+                          className="input-field !text-sm"
+                          placeholder="Job title"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Description</label>
+                        <textarea
+                          value={editJobForm.description}
+                          onChange={(e) => setEditJobForm({ ...editJobForm, description: e.target.value })}
+                          className="input-field resize-none !text-sm"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Salary</label>
+                          <input
+                            type="text"
+                            value={editJobForm.salary}
+                            onChange={(e) => setEditJobForm({ ...editJobForm, salary: e.target.value })}
+                            className="input-field !text-sm"
+                            placeholder="e.g. ₹8-12 LPA"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                          <input
+                            type="text"
+                            value={editJobForm.location}
+                            onChange={(e) => setEditJobForm({ ...editJobForm, location: e.target.value })}
+                            className="input-field !text-sm"
+                            placeholder="e.g. Bangalore"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Job Type</label>
+                          <select
+                            value={editJobForm.type}
+                            onChange={(e) => setEditJobForm({ ...editJobForm, type: e.target.value })}
+                            className="input-field !text-sm"
+                          >
+                            <option value="Full-time">Full-time</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Internship">Internship</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Remote">Remote</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Vacancy Duration (days)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editJobForm.durationDays}
+                            onChange={(e) => setEditJobForm({ ...editJobForm, durationDays: e.target.value })}
+                            className="input-field !text-sm"
+                            placeholder="e.g. 30"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Apply Link</label>
+                        <input
+                          type="url"
+                          value={editJobForm.applyLink}
+                          onChange={(e) => setEditJobForm({ ...editJobForm, applyLink: e.target.value })}
+                          className="input-field !text-sm"
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => handleUpdateJob(job.id)}
+                          disabled={submitting}
+                          className="btn-primary text-xs !py-1.5 !px-4 disabled:opacity-50"
+                        >
+                          {submitting ? 'Saving...' : '💾 Save Changes'}
+                        </button>
+                        <button
+                          onClick={cancelEditingJob}
+                          className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    {job.description && (
-                      <p className="text-sm text-slate-500 mt-2 line-clamp-2">{job.description}</p>
-                    )}
-                    <p className="text-xs text-slate-500 mt-2">{formatDate(job.createdAt)}</p>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteJob(job.id)}
-                    className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors flex-shrink-0"
-                  >
-                    🗑️ Delete
-                  </button>
+                  ) : (
+                    /* ── VIEW MODE ── */
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{job.title}</h3>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
+                          {job.location && <span>📍 {job.location}</span>}
+                          {job.salary && <span>💰 {job.salary}</span>}
+                          {job.type && <span>{job.type}</span>}
+                          {job.durationDays && (
+                            <span className="text-primary-400">
+                              ⏱ {job.durationDays}d vacancy
+                            </span>
+                          )}
+                        </div>
+                        {job.description && (
+                          <p className="text-sm text-slate-500 mt-2 line-clamp-2">{job.description}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-2">
+                          <p className="text-xs text-slate-500">{formatDate(job.createdAt)}</p>
+                          {isExpired && (
+                            <span className="text-[10px] font-semibold text-red-400 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/15">
+                              EXPIRED
+                            </span>
+                          )}
+                          {job.expiresAt && !isExpired && (
+                            <span className="text-[10px] font-medium text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/15">
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => startEditingJob(job)}
+                          className="text-xs text-primary-400 hover:text-primary-300 px-3 py-1.5 rounded-lg hover:bg-primary-500/10 transition-colors"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteJob(job.id)}
+                          className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

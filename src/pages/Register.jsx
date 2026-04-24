@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/auth';
+import { requestOtp } from '../services/otp';
+import { sendOtpEmail, isEmailServiceConfigured } from '../services/emailService';
 import toast from 'react-hot-toast';
 
 const Register = () => {
@@ -44,9 +46,43 @@ const Register = () => {
 
     try {
       setLoading(true);
-      await registerUser(formData.email, formData.password, formData.displayName, formData.college.trim());
-      toast.success('Account created! Welcome to ReviewHub 🎉');
-      navigate('/');
+
+      // If email service is configured, use OTP verification flow
+      if (isEmailServiceConfigured()) {
+        const otpResult = await requestOtp(formData.email);
+        if (!otpResult.success) {
+          toast.error(otpResult.message || 'Failed to send OTP');
+          return;
+        }
+
+        // Send OTP email
+        const emailResult = await sendOtpEmail(formData.email, otpResult.otp);
+        if (!emailResult.success) {
+          toast.error(emailResult.error || 'Failed to send verification email');
+          return;
+        }
+
+        toast.success('Verification code sent to your email!');
+
+        // Navigate to OTP verification page
+        navigate('/signup-otp-verify', {
+          state: {
+            email: formData.email,
+            signupType: 'user',
+            signupData: {
+              email: formData.email,
+              password: formData.password,
+              displayName: formData.displayName,
+              college: formData.college.trim(),
+            },
+          },
+        });
+      } else {
+        // Fallback: direct registration without OTP (email service not configured)
+        await registerUser(formData.email, formData.password, formData.displayName, formData.college.trim());
+        toast.success('Account created! Welcome to ReviewHub 🎉');
+        navigate('/');
+      }
     } catch (error) {
       const messages = {
         'auth/email-already-in-use': 'An account with this email already exists',

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerCompany, loginCompany } from '../services/companyAuth';
+import { requestOtp } from '../services/otp';
+import { sendOtpEmail, isEmailServiceConfigured } from '../services/emailService';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -67,15 +69,50 @@ const CompanyLogin = () => {
     }
     try {
       setLoading(true);
-      await registerCompany(registerData.email, registerData.password, {
-        name: registerData.name.trim(),
-        industry: registerData.industry,
-        location: registerData.location.trim(),
-        website: registerData.website.trim(),
-        about: registerData.about.trim(),
-      });
-      toast.success('Company account created! 🎉');
-      navigate('/company/dashboard');
+
+      // If email service is configured, use OTP verification flow
+      if (isEmailServiceConfigured()) {
+        const otpResult = await requestOtp(registerData.email);
+        if (!otpResult.success) {
+          toast.error(otpResult.message || 'Failed to send OTP');
+          return;
+        }
+
+        const emailResult = await sendOtpEmail(registerData.email, otpResult.otp);
+        if (!emailResult.success) {
+          toast.error(emailResult.error || 'Failed to send verification email');
+          return;
+        }
+
+        toast.success('Verification code sent to your email!');
+
+        navigate('/signup-otp-verify', {
+          state: {
+            email: registerData.email,
+            signupType: 'company',
+            signupData: {
+              email: registerData.email,
+              password: registerData.password,
+              name: registerData.name.trim(),
+              industry: registerData.industry,
+              location: registerData.location.trim(),
+              website: registerData.website.trim(),
+              about: registerData.about.trim(),
+            },
+          },
+        });
+      } else {
+        // Fallback: direct registration without OTP
+        await registerCompany(registerData.email, registerData.password, {
+          name: registerData.name.trim(),
+          industry: registerData.industry,
+          location: registerData.location.trim(),
+          website: registerData.website.trim(),
+          about: registerData.about.trim(),
+        });
+        toast.success('Company account created! 🎉');
+        navigate('/company/dashboard');
+      }
     } catch (error) {
       const messages = {
         'auth/email-already-in-use': 'An account with this email already exists',
@@ -177,6 +214,16 @@ const CompanyLogin = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   </button>
+                </div>
+                {/* Forgot Password Link */}
+                <div className="flex justify-end mt-1.5">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-primary-400 hover:text-primary-300 transition-colors font-medium"
+                    id="company-forgot-password-link"
+                  >
+                    Forgot Password?
+                  </Link>
                 </div>
               </div>
               <button type="submit" disabled={loading} className="btn-primary w-full !py-3">

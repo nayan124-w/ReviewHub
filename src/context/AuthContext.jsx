@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { getUserProfile } from '../services/auth';
 import { getCompanyUser, getCompanyProfile } from '../services/companyAuth';
@@ -40,12 +40,56 @@ export const clearOtpSession = () => {
   localStorage.removeItem('reviewhub_otp_session');
 };
 
+/**
+ * Clear ALL ReviewHub-related storage.
+ * Called on logout to fully invalidate the session.
+ */
+const clearAllStorage = () => {
+  // Clear OTP session
+  clearOtpSession();
+
+  // Clear any other ReviewHub keys from localStorage
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('reviewhub_')) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+  // Clear entire sessionStorage
+  sessionStorage.clear();
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [companyProfile, setCompanyProfile] = useState(null);
   const [accountType, setAccountType] = useState(null); // 'user' | 'company' | null
   const [loading, setLoading] = useState(true);
+
+  /**
+   * Unified logout — handles Firebase signOut + storage cleanup.
+   * Returns a promise that resolves after sign-out.
+   */
+  const logout = useCallback(async () => {
+    // 1. Clear all local/session storage immediately
+    clearAllStorage();
+
+    // 2. Reset in-memory state
+    setUser(null);
+    setUserProfile(null);
+    setCompanyProfile(null);
+    setAccountType(null);
+
+    // 3. Firebase signOut (safe even if no user is signed in)
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore — state is already cleared
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -119,6 +163,7 @@ export const AuthProvider = ({ children }) => {
     isUser: accountType === 'user',
     isOtpSession: !!user?.isOtpSession,
     clearOtpSession,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

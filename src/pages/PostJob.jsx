@@ -15,6 +15,7 @@ const PostJob = () => {
     location: '',
     type: 'Full-time',
     applyLink: '',
+    durationDays: '',
   });
 
   const handleChange = (e) => {
@@ -43,6 +44,7 @@ const PostJob = () => {
         location: formData.location.trim() || companyProfile?.location || '',
         type: formData.type,
         applyLink: formData.applyLink.trim(),
+        durationDays: formData.durationDays ? Number(formData.durationDays) : null,
       });
       toast.success('Job posted successfully! 🎉');
       navigate('/company/dashboard');
@@ -169,6 +171,24 @@ const PostJob = () => {
                 className="input-field"
                 placeholder="https://careers.yourcompany.com/apply"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Vacancy Duration <span className="text-slate-500 font-normal">(days, optional)</span>
+              </label>
+              <input
+                type="number"
+                name="durationDays"
+                min="1"
+                value={formData.durationDays}
+                onChange={handleChange}
+                className="input-field"
+                placeholder="e.g. 30 — leave empty for no expiry"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Job will auto-expire after this many days. Leave empty for no expiry.
+              </p>
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full !py-3">

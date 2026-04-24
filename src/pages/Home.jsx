@@ -382,14 +382,14 @@ const Home = () => {
       </section>
 
       {/* ━━━ CTA BANNER ━━━ */}
-      <section className="pb-20 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto glass rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden">
+      <section className="pb-20 px-4 sm:px-6 flex items-center justify-center">
+        <div className="w-full max-w-4xl mx-auto glass rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden">
           <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[280px] h-[180px] bg-primary-500/10 blur-[80px] pointer-events-none" />
-          <div className="relative">
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
+          <div className="relative flex flex-col items-center justify-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 text-center w-full">
               Ready to Share Your Experience?
             </h2>
-            <p className="text-sm text-slate-400 max-w-md mx-auto mb-8">
+            <p className="text-sm text-slate-400 max-w-md mx-auto mb-8 text-center">
               Join our community and help others make better career decisions.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

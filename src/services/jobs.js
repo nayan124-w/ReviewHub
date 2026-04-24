@@ -20,6 +20,12 @@ const jobsRef = collection(db, 'jobs');
    CREATE JOB
    ────────────────────────────────────────────── */
 export const createJob = async (jobData) => {
+  // Compute expiry
+  const durationDays = jobData.durationDays ? Number(jobData.durationDays) : null;
+  const expiresAt = durationDays && durationDays > 0
+    ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
+    : null;
+
   const docRef = await addDoc(jobsRef, {
     companyId: jobData.companyId,
     companyName: jobData.companyName || '',
@@ -31,6 +37,8 @@ export const createJob = async (jobData) => {
     applyLink: jobData.applyLink || '',
     createdAt: serverTimestamp(),
     active: true,
+    durationDays: durationDays,
+    expiresAt: expiresAt,
   });
   return { id: docRef.id, ...jobData };
 };
@@ -41,7 +49,17 @@ export const createJob = async (jobData) => {
 export const getJobs = async () => {
   const q = query(jobsRef, where('active', '==', true), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const now = new Date();
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((job) => {
+      // Auto-expire: skip jobs past their expiresAt
+      if (!job.expiresAt) return true;
+      const expiry = job.expiresAt.seconds
+        ? new Date(job.expiresAt.seconds * 1000)
+        : new Date(job.expiresAt);
+      return expiry > now;
+    });
 };
 
 /* ──────────────────────────────────────────────
@@ -64,7 +82,17 @@ export const getJobsByCompany = async (companyId) => {
 export const subscribeJobs = (callback) => {
   const q = query(jobsRef, where('active', '==', true), orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const now = new Date();
+    const data = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((job) => {
+        // Auto-expire: skip jobs past their expiresAt
+        if (!job.expiresAt) return true;
+        const expiry = job.expiresAt.seconds
+          ? new Date(job.expiresAt.seconds * 1000)
+          : new Date(job.expiresAt);
+        return expiry > now;
+      });
     callback(data);
   });
 };
@@ -73,14 +101,16 @@ export const subscribeJobs = (callback) => {
    REAL-TIME — subscribe to jobs by company
    ────────────────────────────────────────────── */
 export const subscribeJobsByCompany = (companyId, callback) => {
+  // Company sees ALL their jobs (including expired) for management
   const q = query(
     jobsRef,
     where('companyId', '==', companyId),
-    where('active', '==', true),
     orderBy('createdAt', 'desc')
   );
   return onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const data = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((job) => job.active !== false); // only exclude manually deactivated
     callback(data);
   });
 };
@@ -98,6 +128,8 @@ export const updateJob = async (jobId, updatedData) => {
   if (updatedData.type !== undefined) allowedFields.type = updatedData.type;
   if (updatedData.applyLink !== undefined) allowedFields.applyLink = updatedData.applyLink;
   if (updatedData.active !== undefined) allowedFields.active = updatedData.active;
+  if (updatedData.durationDays !== undefined) allowedFields.durationDays = updatedData.durationDays;
+  if (updatedData.expiresAt !== undefined) allowedFields.expiresAt = updatedData.expiresAt;
 
   await updateDoc(jobRef, allowedFields);
 };

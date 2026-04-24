@@ -4,13 +4,15 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 /* ──────────────────────────────────────────────
    COMPANY REGISTRATION
    Creates a Firebase Auth user + a companyUsers doc.
    Also creates the company profile doc.
+   Also creates a 'companies' collection doc so users can
+   review the company immediately.
    ────────────────────────────────────────────── */
 export const registerCompany = async (email, password, companyData) => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -41,6 +43,21 @@ export const registerCompany = async (email, password, companyData) => {
     totalReviews: 0,
     featured: false,
     createdAt: serverTimestamp(),
+  });
+
+  // Also create a document in the 'companies' collection
+  // so users can find and review this company immediately
+  const companiesRef = collection(db, 'companies');
+  await addDoc(companiesRef, {
+    name: companyData.name,
+    industry: companyData.industry || '',
+    location: companyData.location || '',
+    website: companyData.website || '',
+    description: companyData.about || '',
+    createdBy: user.uid,
+    createdAt: serverTimestamp(),
+    averageRating: 0,
+    totalReviews: 0,
   });
 
   return user;

@@ -1,12 +1,10 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth, clearOtpSession } from '../context/AuthContext';
-import { logoutUser } from '../services/auth';
-import { logoutCompany } from '../services/companyAuth';
+import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
-  const { user, isAuthenticated, isCompany, isOtpSession } = useAuth();
+  const { user, isAuthenticated, isCompany, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -30,23 +28,9 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      // Always clear OTP session if present
-      clearOtpSession();
-
-      if (isOtpSession) {
-        // OTP session — just clear and reload
-        toast.success('Logged out successfully');
-        window.location.href = '/';
-        return;
-      }
-
-      if (isCompany) {
-        await logoutCompany();
-      } else {
-        await logoutUser();
-      }
+      await logout();
       toast.success('Logged out successfully');
-      navigate('/');
+      navigate('/login', { replace: true });
     } catch {
       toast.error('Failed to log out');
     }
