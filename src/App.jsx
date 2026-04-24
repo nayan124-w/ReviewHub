@@ -29,6 +29,9 @@ const PostJob = lazy(() => import('./pages/PostJob'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Contact = lazy(() => import('./pages/Contact'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const OtpLogin = lazy(() => import('./pages/OtpLogin'));
+const OtpVerify = lazy(() => import('./pages/OtpVerify'));
 
 /* ──────────────────────────────────────────────
    Global loading fallback for Suspense
@@ -75,6 +78,9 @@ function App() {
                     <Route path="/register" element={<Register />} />
                     <Route path="/company/:id" element={<CompanyDetail />} />
                     <Route path="/reviews" element={<BrowseReviews />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/otp-login" element={<OtpLogin />} />
+                    <Route path="/otp-verify" element={<OtpVerify />} />
                     <Route path="/profile/:userId" element={<UserProfile />} />
                     <Route path="/jobs" element={<Jobs />} />
                     <Route path="/terms" element={<Terms />} />

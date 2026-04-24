@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -60,4 +61,12 @@ export const getUniqueColleges = async () => {
     }
   });
   return Array.from(colleges).sort();
+};
+
+/**
+ * Send a password reset email using Firebase Auth.
+ * FREE — handled entirely by Firebase.
+ */
+export const sendPasswordReset = async (email) => {
+  await sendPasswordResetEmail(auth, email);
 };

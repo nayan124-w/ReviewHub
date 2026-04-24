@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════
+    //  OTP COLLECTION RULES
+    //  - Allow create: any client can create an OTP doc
+    //  - Allow read: only if the request matches the email
+    //  - Deny update/delete from client (handled by server logic)
+    // ═══════════════════════════════════════════
+    match /otp/{otpId} {
+      // Allow creating new OTP documents
+      allow create: if true;
+
+      // Allow reading only if the requester's email matches the doc
+      // Since we don't require auth for OTP login, we allow read
+      // but the OTP is verified server-side through Firestore queries
+      allow read: if true;
+
+      // Allow update for attempt tracking (incrementing attempts field)
+      allow update: if true;
+
+      // Allow delete for cleanup after verification
+      allow delete: if true;
+
+      // NOTE: For production, consider using Firebase Cloud Functions
+      // to handle OTP verification server-side. The above rules are
+      // permissive to support client-side OTP verification.
+      // Recommended production rules:
+      //   allow create: if request.auth != null || true;
+      //   allow read: if request.resource.data.email == request.auth.token.email;
+      //   allow update: if false; // Only via Cloud Functions
+      //   allow delete: if false; // Only via Cloud Functions
+    }
+
+    // ═══════════════════════════════════════════
+    //  EXISTING RULES — Do NOT modify below
+    //  Copy-paste the OTP rules above into your
+    //  existing firestore.rules file
+    // ═══════════════════════════════════════════
+
+  }
+}

@@ -14,6 +14,32 @@ export const useAuth = () => {
   return context;
 };
 
+/**
+ * Check for a valid OTP session in localStorage.
+ * OTP sessions expire after 24 hours.
+ */
+const getOtpSession = () => {
+  try {
+    const raw = localStorage.getItem('reviewhub_otp_session');
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    // Expire OTP sessions after 24 hours
+    if (Date.now() - session.timestamp > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem('reviewhub_otp_session');
+      return null;
+    }
+    return session;
+  } catch {
+    localStorage.removeItem('reviewhub_otp_session');
+    return null;
+  }
+};
+
+/** Clear OTP session */
+export const clearOtpSession = () => {
+  localStorage.removeItem('reviewhub_otp_session');
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -23,8 +49,9 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
       if (firebaseUser) {
+        // ── Existing Firebase Auth flow (untouched) ──
+        setUser(firebaseUser);
         try {
           // Check if this is a company account first
           const companyUser = await getCompanyUser(firebaseUser.uid);
@@ -45,9 +72,35 @@ export const AuthProvider = ({ children }) => {
           setAccountType('user');
         }
       } else {
-        setUserProfile(null);
-        setCompanyProfile(null);
-        setAccountType(null);
+        // ── No Firebase user — check for OTP session ──
+        const otpSession = getOtpSession();
+        if (otpSession && otpSession.otpVerified) {
+          // Create a minimal user-like object for OTP sessions
+          setUser({
+            uid: otpSession.uid,
+            email: otpSession.email,
+            displayName: otpSession.displayName,
+            isOtpSession: true,
+          });
+          setAccountType('user');
+          // Fetch full profile from Firestore
+          try {
+            const profile = await getUserProfile(otpSession.uid);
+            setUserProfile(profile);
+          } catch {
+            setUserProfile({
+              email: otpSession.email,
+              displayName: otpSession.displayName,
+              userId: otpSession.uid,
+            });
+          }
+          setCompanyProfile(null);
+        } else {
+          setUser(null);
+          setUserProfile(null);
+          setCompanyProfile(null);
+          setAccountType(null);
+        }
       }
       setLoading(false);
     });
@@ -64,7 +117,10 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isCompany: accountType === 'company',
     isUser: accountType === 'user',
+    isOtpSession: !!user?.isOtpSession,
+    clearOtpSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
