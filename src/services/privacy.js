@@ -14,6 +14,8 @@
  * @returns {Object} Sanitized review safe for company viewing
  */
 export const sanitizeReviewForCompany = (review) => {
+  // STRICT ALLOWLIST — only these fields are returned to companies
+  // userId, userName, userEmail, userCollege, isAnonymous are ALL EXCLUDED
   return {
     id: review.id,
     rating: review.rating,
@@ -23,16 +25,9 @@ export const sanitizeReviewForCompany = (review) => {
     proofUrl: review.proofUrl || null,
     proofType: review.proofType || null,
     helpful: review.helpful || 0,
-    helpfulBy: undefined, // strip voter list
     companyId: review.companyId,
     companyReply: review.companyReply || null,
     companyReplyAt: review.companyReplyAt || null,
-    // PRIVACY: These fields are NEVER included
-    // userId: EXCLUDED
-    // userName: EXCLUDED
-    // userEmail: EXCLUDED
-    // userCollege: EXCLUDED
-    // isAnonymous: EXCLUDED (company doesn't need to know either way)
   };
 };
 

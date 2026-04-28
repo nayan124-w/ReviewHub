@@ -98,12 +98,20 @@ const Navbar = () => {
               </>
             )}
             {isCompany && (
-              <Link to="/company/dashboard" className={navLinkClass('/company/dashboard')}>
-                <span className="flex items-center gap-1.5">
-                  🏢 Company
-                </span>
-                {activeIndicator('/company/dashboard')}
-              </Link>
+              <>
+                <Link to="/company/dashboard" className={navLinkClass('/company/dashboard')}>
+                  <span className="flex items-center gap-1.5">
+                    🏢 Company
+                  </span>
+                  {activeIndicator('/company/dashboard')}
+                </Link>
+                <Link to="/company/post-job" className={navLinkClass('/company/post-job')}>
+                  <span className="flex items-center gap-1.5">
+                    💼 Post Job
+                  </span>
+                  {activeIndicator('/company/post-job')}
+                </Link>
+              </>
             )}
           </div>
 

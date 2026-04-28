@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCompanyStats } from './companies';
+import { getCompanyUser } from './companyAuth';
 
 const reviewsRef = collection(db, 'reviews');
 
@@ -36,6 +37,14 @@ export const hasUserReviewedCompany = async (userId, companyId) => {
    CREATE
    ────────────────────────────────────────────── */
 export const addReview = async (reviewData) => {
+  // 🔒 HARD VALIDATION: Block company accounts from posting reviews
+  console.log('[addReview] userId:', reviewData.userId);
+  const companyUser = await getCompanyUser(reviewData.userId);
+  if (companyUser && companyUser.role === 'company') {
+    console.log('[addReview] BLOCKED — company account tried to post review');
+    throw new Error('Companies cannot post reviews. Only user accounts can write reviews.');
+  }
+
   // Enforce one review per user per company
   const alreadyReviewed = await hasUserReviewedCompany(
     reviewData.userId,

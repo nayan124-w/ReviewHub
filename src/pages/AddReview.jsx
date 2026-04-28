@@ -10,8 +10,28 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const AddReview = () => {
   const { companyId } = useParams();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isCompany } = useAuth();
   const navigate = useNavigate();
+
+  // 🔒 ROLE GUARD: Companies cannot write reviews
+  if (isCompany) {
+    return (
+      <div className="page-container py-20 text-center">
+        <div className="glass rounded-2xl p-10 max-w-lg mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-5">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Access Restricted</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Company accounts cannot post reviews. Only employee/user accounts can write reviews.
+          </p>
+          <Link to="/company/dashboard" className="btn-primary">Go to Company Dashboard</Link>
+        </div>
+      </div>
+    );
+  }
 
   const [company, setCompany] = useState(null);
   const [rating, setRating] = useState(0);

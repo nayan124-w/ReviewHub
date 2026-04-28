@@ -13,6 +13,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { getCompanyUser } from './companyAuth';
 
 const jobsRef = collection(db, 'jobs');
 
@@ -20,6 +21,28 @@ const jobsRef = collection(db, 'jobs');
    CREATE JOB
    ────────────────────────────────────────────── */
 export const createJob = async (jobData) => {
+  // 🔥 DEBUG LOGGING
+  console.log('[createJob] Job payload:', JSON.stringify(jobData, null, 2));
+
+  // 🔒 HARD VALIDATION: Only company accounts can create jobs
+  if (!jobData.companyId) {
+    throw new Error('companyId is required to create a job.');
+  }
+  const companyUser = await getCompanyUser(jobData.companyId);
+  console.log('[createJob] User role:', companyUser?.role);
+  if (!companyUser || companyUser.role !== 'company') {
+    console.log('[createJob] BLOCKED — non-company account tried to create a job');
+    throw new Error('Only company accounts can post jobs.');
+  }
+
+  // Validate required fields
+  if (!jobData.title || !jobData.title.trim()) {
+    throw new Error('Job title is required.');
+  }
+  if (!jobData.applyLink || !jobData.applyLink.trim()) {
+    throw new Error('Application link is required.');
+  }
+
   // Compute expiry
   const durationDays = jobData.durationDays ? Number(jobData.durationDays) : null;
   const expiresAt = durationDays && durationDays > 0
@@ -28,18 +51,19 @@ export const createJob = async (jobData) => {
 
   const docRef = await addDoc(jobsRef, {
     companyId: jobData.companyId,
-    companyName: jobData.companyName || '',
-    title: jobData.title,
+    companyName: jobData.companyName || companyUser.companyName || '',
+    title: jobData.title.trim(),
     description: jobData.description || '',
     salary: jobData.salary || '',
     location: jobData.location || '',
-    type: jobData.type || 'Full-time', // Full-time, Part-time, Internship, Contract
-    applyLink: jobData.applyLink || '',
+    type: jobData.type || 'Full-time',
+    applyLink: jobData.applyLink.trim(),
     createdAt: serverTimestamp(),
     active: true,
     durationDays: durationDays,
     expiresAt: expiresAt,
   });
+  console.log('[createJob] SUCCESS — Job created with ID:', docRef.id);
   return { id: docRef.id, ...jobData };
 };
 

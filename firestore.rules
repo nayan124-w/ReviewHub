@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════
+    //  HELPER FUNCTIONS
+    // ═══════════════════════════════════════════
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isCompanyAccount() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/companyUsers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/companyUsers/$(request.auth.uid)).data.role == 'company';
+    }
+
+    function isUserAccount() {
+      return isAuthenticated() && !isCompanyAccount();
+    }
+
+    // ═══════════════════════════════════════════
+    //  JOBS COLLECTION
+    //  - Create: only company accounts, companyId must match auth uid
+    //  - Read: only active jobs (public)
+    //  - Update/Delete: only the company that created the job
+    // ═══════════════════════════════════════════
+    match /jobs/{jobId} {
+      allow create: if isCompanyAccount()
+                    && request.resource.data.companyId == request.auth.uid;
+
+      allow read: if resource.data.active == true
+                  || (isAuthenticated() && resource.data.companyId == request.auth.uid);
+
+      allow update, delete: if isAuthenticated()
+                            && resource.data.companyId == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════
+    //  REVIEWS COLLECTION
+    //  - Create: only non-company (user) accounts
+    //  - Read: any authenticated user
+    //  - Update: owner can update review fields, company can add reply
+    //  - Delete: only the review owner
+    // ═══════════════════════════════════════════
+    match /reviews/{reviewId} {
+      allow create: if isUserAccount()
+                    && request.resource.data.userId == request.auth.uid;
+
+      allow read: if true;
+
+      // Allow review owner to update review fields
+      // Allow company to add/remove reply (companyReply field)
+      allow update: if isAuthenticated()
+                    && (resource.data.userId == request.auth.uid
+                        || resource.data.companyId == request.auth.uid);
+
+      allow delete: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════
+    //  COMPANIES COLLECTION (review directory)
+    //  - Create: any authenticated user (user accounts add companies for review)
+    //  - Read: public
+    //  - Update: only for stats recalculation (trusted)
+    // ═══════════════════════════════════════════
+    match /companies/{companyId} {
+      allow create: if isAuthenticated();
+      allow read: if true;
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  COMPANY USERS (auth/role mapping)
+    // ═══════════════════════════════════════════
+    match /companyUsers/{uid} {
+      allow create: if isOwner(uid);
+      allow read: if isAuthenticated();
+      allow update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  COMPANY PROFILES
+    // ═══════════════════════════════════════════
+    match /companyProfiles/{uid} {
+      allow create: if isOwner(uid);
+      allow read: if true;
+      allow update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  USERS (regular user profiles)
+    // ═══════════════════════════════════════════
+    match /users/{uid} {
+      allow create: if isOwner(uid);
+      allow read: if isAuthenticated();
+      allow update: if isOwner(uid);
+      allow delete: if false;
+
+      // Saved jobs subcollection
+      match /savedJobs/{jobId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ═══════════════════════════════════════════
+    //  MESSAGES
+    // ═══════════════════════════════════════════
+    match /messages/{messageId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated()
+                  && (resource.data.senderId == request.auth.uid
+                      || resource.data.receiverId == request.auth.uid);
+      allow update: if isAuthenticated()
+                    && (resource.data.senderId == request.auth.uid
+                        || resource.data.receiverId == request.auth.uid);
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  OTP COLLECTION (kept permissive for client-side OTP flow)
+    // ═══════════════════════════════════════════
+    match /otp/{otpId} {
+      allow create: if true;
+      allow read: if true;
+      allow update: if true;
+      allow delete: if true;
+    }
+
+  }
+}

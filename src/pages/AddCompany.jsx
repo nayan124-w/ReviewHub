@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { addCompany } from '../services/companies';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -18,8 +18,29 @@ const industries = [
 ];
 
 const AddCompany = () => {
-  const { user } = useAuth();
+  const { user, isCompany } = useAuth();
   const navigate = useNavigate();
+
+  // 🔒 ROLE GUARD: Company accounts cannot add companies
+  if (isCompany) {
+    return (
+      <div className="page-container py-20 text-center">
+        <div className="glass rounded-2xl p-10 max-w-lg mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-5">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Access Restricted</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Company accounts cannot add companies. Your company was created during registration.
+          </p>
+          <Link to="/company/dashboard" className="btn-primary">Go to Company Dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
   const [formData, setFormData] = useState({
     name: '',
     industry: '',

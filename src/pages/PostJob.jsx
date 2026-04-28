@@ -33,22 +33,29 @@ const PostJob = () => {
       return;
     }
 
+    const jobPayload = {
+      companyId: user.uid,
+      companyName: companyProfile?.name || 'Unknown Company',
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      salary: formData.salary.trim(),
+      location: formData.location.trim() || companyProfile?.location || '',
+      type: formData.type,
+      applyLink: formData.applyLink.trim(),
+      durationDays: formData.durationDays ? Number(formData.durationDays) : null,
+    };
+
+    // 🔥 DEBUG LOGGING
+    console.log('[PostJob] User role: company');
+    console.log('[PostJob] Job payload:', jobPayload);
+
     try {
       setLoading(true);
-      await createJob({
-        companyId: user.uid,
-        companyName: companyProfile?.name || 'Unknown Company',
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        salary: formData.salary.trim(),
-        location: formData.location.trim() || companyProfile?.location || '',
-        type: formData.type,
-        applyLink: formData.applyLink.trim(),
-        durationDays: formData.durationDays ? Number(formData.durationDays) : null,
-      });
+      await createJob(jobPayload);
       toast.success('Job posted successfully! 🎉');
       navigate('/company/dashboard');
     } catch (error) {
+      console.error('[PostJob] Error:', error);
       toast.error(error.message || 'Failed to post job');
     } finally {
       setLoading(false);

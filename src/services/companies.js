@@ -12,6 +12,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { getCompanyUser } from './companyAuth';
 
 const companiesRef = collection(db, 'companies');
 
@@ -19,6 +20,21 @@ const companiesRef = collection(db, 'companies');
    CREATE
    ────────────────────────────────────────────── */
 export const addCompany = async (companyData, userId) => {
+  // 🔒 HARD VALIDATION: Block company accounts from creating companies
+  console.log('[addCompany] userId:', userId);
+  const companyUser = await getCompanyUser(userId);
+  if (companyUser && companyUser.role === 'company') {
+    console.log('[addCompany] BLOCKED — company account tried to create a company listing');
+    throw new Error('Company accounts cannot add companies. Companies are created during registration.');
+  }
+
+  // Prevent duplicate company creation by the same user
+  const existingQ = query(companiesRef, where('createdBy', '==', userId));
+  const existingSnap = await getDocs(existingQ);
+  if (!existingSnap.empty) {
+    console.log('[addCompany] WARNING — user already created a company, allowing (user role)');
+  }
+
   const docRef = await addDoc(companiesRef, {
     ...companyData,
     createdBy: userId,

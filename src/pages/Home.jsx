@@ -314,15 +314,27 @@ const Home = () => {
         </div>
 
         <div className="text-center mt-10">
-          <Link
-            to={isAuthenticated ? '/add-company' : '/register'}
-            className="btn-primary !px-8 !py-3"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            {isAuthenticated ? 'Write Your First Review' : 'Get Started — It\'s Free'}
-          </Link>
+          {isCompany ? (
+            <Link
+              to="/company/dashboard"
+              className="btn-primary !px-8 !py-3"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+              </svg>
+              Go to Company Dashboard
+            </Link>
+          ) : (
+            <Link
+              to={isAuthenticated ? '/add-company' : '/register'}
+              className="btn-primary !px-8 !py-3"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              {isAuthenticated ? 'Write Your First Review' : 'Get Started — It\'s Free'}
+            </Link>
+          )}
         </div>
       </section>
 
@@ -393,12 +405,21 @@ const Home = () => {
               Join our community and help others make better career decisions.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                to={isAuthenticated ? '/add-company' : '/register'}
-                className="btn-primary !px-7 !py-3"
-              >
-                {isAuthenticated ? 'Add a Company' : 'Create Free Account'}
-              </Link>
+              {isCompany ? (
+                <Link
+                  to="/company/dashboard"
+                  className="btn-primary !px-7 !py-3"
+                >
+                  Go to Company Dashboard
+                </Link>
+              ) : (
+                <Link
+                  to={isAuthenticated ? '/add-company' : '/register'}
+                  className="btn-primary !px-7 !py-3"
+                >
+                  {isAuthenticated ? 'Add a Company' : 'Create Free Account'}
+                </Link>
+              )}
               <Link to="/reviews" className="btn-secondary !px-7 !py-3">
                 Browse Reviews
               </Link>
